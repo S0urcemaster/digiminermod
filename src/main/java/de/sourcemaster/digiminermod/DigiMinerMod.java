@@ -19,6 +19,9 @@ public final class DigiMinerMod implements ModInitializer {
 	public static final ResourceKey<Item> SPAWNER_SCANNER_KEY = ResourceKey.create(Registries.ITEM, id("spawner_scanner"));
 	public static final Item SPAWNER_SCANNER = Registry.register(BuiltInRegistries.ITEM, SPAWNER_SCANNER_KEY,
 			new Item(new Item.Properties().setId(SPAWNER_SCANNER_KEY).stacksTo(1)));
+	public static final ResourceKey<Item> IRON_SCANNER_KEY = ResourceKey.create(Registries.ITEM, id("iron_scanner"));
+	public static final Item IRON_SCANNER = Registry.register(BuiltInRegistries.ITEM, IRON_SCANNER_KEY,
+			new Item(new Item.Properties().setId(IRON_SCANNER_KEY).stacksTo(1)));
 
 	@Override
 	public void onInitialize() {
@@ -29,6 +32,11 @@ public final class DigiMinerMod implements ModInitializer {
 				giveOrDrop(player, new ItemStack(Items.IRON_AXE));
 				giveOrDrop(player, new ItemStack(Items.IRON_PICKAXE));
 				player.addTag(starterTag);
+			}
+			String scannerTag = MOD_ID + ".received_iron_scanner";
+			if (!player.isCreative() && !player.isSpectator() && !player.entityTags().contains(scannerTag)) {
+				giveOrDrop(player, new ItemStack(IRON_SCANNER));
+				player.addTag(scannerTag);
 			}
 		});
 		LOGGER.info("Digi Miner Mod wurde initialisiert.");
