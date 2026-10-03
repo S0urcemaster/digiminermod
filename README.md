@@ -1,2 +1,3 @@
-# digiminermod
+# Digi Miner Mod
+
 Minecraft mod
