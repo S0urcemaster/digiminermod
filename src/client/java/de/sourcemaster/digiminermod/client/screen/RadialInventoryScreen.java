@@ -1,46 +1,47 @@
 package de.sourcemaster.digiminermod.client.screen;
 
+import de.sourcemaster.digiminermod.client.input.ControllerSupport;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.inventory.InventoryMenu;
+import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
-import org.lwjgl.glfw.GLFW;
-import org.lwjgl.glfw.GLFWGamepadState;
-import org.lwjgl.system.MemoryStack;
 
-import java.nio.ByteBuffer;
-import java.nio.FloatBuffer;
 import java.util.List;
 
 public final class RadialInventoryScreen extends Screen {
 	private static final int MAIN_SLOT_COUNT = 27;
-	private static final int MAIN_SLOT_OFFSET = 9;
 	private static final int PAGE_SIZE = 14;
-	private static final int PAGE_COUNT = (MAIN_SLOT_COUNT + PAGE_SIZE - 1) / PAGE_SIZE;
+	private static final int PAGE_COUNT = 2;
+	private static final int[] EQUIPMENT_MENU_SLOTS = {5, 6, 7, 8, InventoryMenu.SHIELD_SLOT};
 	private static final int SLOT_SIZE = 20;
-	private static final int ITEM_OFFSET = 2;
 	private static final float STICK_DEADZONE = 0.50F;
 	private static final double ANGLE_HYSTERESIS = Math.toRadians(2.5);
-	private static final long MOVE_INITIAL_DELAY_NANOS = 350_000_000L;
-	private static final long MOVE_REPEAT_NANOS = 90_000_000L;
+	private static final long INITIAL_REPEAT_DELAY = 350_000_000L;
+	private static final long REPEAT_INTERVAL = 90_000_000L;
 
+	private enum ActiveRing { EQUIPMENT, INVENTORY }
+
+	private ActiveRing activeRing = ActiveRing.INVENTORY;
 	private int currentPage;
-	private int selectedSlotOnPage;
+	private int inventoryCursor;
+	private int equipmentCursor;
 	private int hotbarCursor;
-	private int activeController = -1;
-	private boolean mappedGamepad;
-	private String controllerName = "";
-	private boolean previousBackButton;
 	private boolean previousLeftBumper;
 	private boolean previousRightBumper;
 	private boolean previousLeftTrigger;
 	private boolean previousRightTrigger;
-	private boolean previousMoveButton;
-	private boolean moveFromRing;
-	private long nextMoveRepeatAt;
+	private boolean previousDpadDown;
+	private boolean previousA;
+	private boolean previousB;
+	private boolean dpadFromInventory;
+	private boolean aFromEquipment;
+	private long nextDpadRepeat;
+	private long nextARepeat;
+	private ControllerSupport.Snapshot controller = ControllerSupport.Snapshot.NONE;
 
 	public RadialInventoryScreen() {
 		super(Component.literal("Digi Miner Inventar"));
@@ -57,218 +58,131 @@ public final class RadialInventoryScreen extends Screen {
 	@Override
 	public void tick() {
 		super.tick();
-		this.pollController();
-	}
-
-	private void pollController() {
-		int controller = this.findController();
-		if (controller < 0) {
-			this.activeController = -1;
-			this.controllerName = "";
-			this.resetButtonStates();
+		this.controller = ControllerSupport.poll();
+		if (!this.controller.connected()) {
+			this.resetButtons();
 			return;
 		}
 
-		this.activeController = controller;
-		this.controllerName = GLFW.glfwGetJoystickName(controller);
-		if (this.controllerName == null) {
-			this.controllerName = "Unbekannter Controller";
-		}
+		this.updateStick(this.controller.leftX(), this.controller.leftY(), ActiveRing.EQUIPMENT);
+		this.updateStick(this.controller.rightX(), this.controller.rightY(), ActiveRing.INVENTORY);
 
-		if (this.mappedGamepad) {
-			this.pollMappedGamepad(controller);
-		} else {
-			this.pollRawJoystick(controller);
-		}
-	}
-
-	private void pollMappedGamepad(int controller) {
-		try (MemoryStack stack = MemoryStack.stackPush()) {
-			GLFWGamepadState state = GLFWGamepadState.malloc(stack);
-			if (!GLFW.glfwGetGamepadState(controller, state)) {
-				return;
-			}
-
-			this.processInput(
-					state.axes(GLFW.GLFW_GAMEPAD_AXIS_RIGHT_X),
-					state.axes(GLFW.GLFW_GAMEPAD_AXIS_RIGHT_Y),
-					state.buttons(GLFW.GLFW_GAMEPAD_BUTTON_A) == GLFW.GLFW_PRESS,
-					state.buttons(GLFW.GLFW_GAMEPAD_BUTTON_B) == GLFW.GLFW_PRESS,
-					state.buttons(GLFW.GLFW_GAMEPAD_BUTTON_LEFT_BUMPER) == GLFW.GLFW_PRESS,
-					state.buttons(GLFW.GLFW_GAMEPAD_BUTTON_RIGHT_BUMPER) == GLFW.GLFW_PRESS,
-					state.axes(GLFW.GLFW_GAMEPAD_AXIS_LEFT_TRIGGER) > 0.5F,
-					state.axes(GLFW.GLFW_GAMEPAD_AXIS_RIGHT_TRIGGER) > 0.5F);
-		}
-	}
-
-	private void pollRawJoystick(int controller) {
-		FloatBuffer axes = GLFW.glfwGetJoystickAxes(controller);
-		ByteBuffer buttons = GLFW.glfwGetJoystickButtons(controller);
-		if (axes == null || axes.remaining() < 6 || buttons == null || buttons.remaining() < 6) {
-			return;
-		}
-
-		// Linux xpad mapping for the Xbox Elite Series 2.
-		this.processInput(
-				axes.get(3), axes.get(4),
-				buttons.get(0) == GLFW.GLFW_PRESS,
-				buttons.get(1) == GLFW.GLFW_PRESS,
-				buttons.get(4) == GLFW.GLFW_PRESS,
-				buttons.get(5) == GLFW.GLFW_PRESS,
-				axes.get(2) > 0.5F,
-				axes.get(5) > 0.5F);
-	}
-
-	private void processInput(
-			float stickX, float stickY,
-			boolean movePressed, boolean backPressed,
-			boolean leftBumper, boolean rightBumper,
-			boolean leftTrigger, boolean rightTrigger) {
-		this.updateRingSelection(stickX, stickY);
-
-		if (leftBumper && !this.previousLeftBumper) {
+		if (this.controller.leftBumper() && !this.previousLeftBumper) {
 			this.hotbarCursor = Math.floorMod(this.hotbarCursor - 1, Inventory.getSelectionSize());
 		}
-		if (rightBumper && !this.previousRightBumper) {
+		if (this.controller.rightBumper() && !this.previousRightBumper) {
 			this.hotbarCursor = (this.hotbarCursor + 1) % Inventory.getSelectionSize();
 		}
+
+		boolean leftTrigger = this.controller.leftTrigger() > 0.5F;
+		boolean rightTrigger = this.controller.rightTrigger() > 0.5F;
 		if (leftTrigger && !this.previousLeftTrigger) {
-			this.changePage(-1);
+			this.changeActivePage(-1);
 		}
 		if (rightTrigger && !this.previousRightTrigger) {
-			this.changePage(1);
+			this.changeActivePage(1);
 		}
 
-		this.handleMoveButton(movePressed);
-		if (backPressed && !this.previousBackButton) {
+		this.handleDpadTransfer(this.controller.dpadDown());
+		this.handleATransfer(this.controller.a());
+		if (this.controller.b() && !this.previousB) {
 			this.onClose();
 		}
 
-		this.previousMoveButton = movePressed;
-		this.previousBackButton = backPressed;
-		this.previousLeftBumper = leftBumper;
-		this.previousRightBumper = rightBumper;
+		this.previousLeftBumper = this.controller.leftBumper();
+		this.previousRightBumper = this.controller.rightBumper();
 		this.previousLeftTrigger = leftTrigger;
 		this.previousRightTrigger = rightTrigger;
+		this.previousDpadDown = this.controller.dpadDown();
+		this.previousA = this.controller.a();
+		this.previousB = this.controller.b();
 	}
 
-	private void updateRingSelection(float x, float y) {
+	private void updateStick(float x, float y, ActiveRing ring) {
 		if (x * x + y * y < STICK_DEADZONE * STICK_DEADZONE) {
 			return;
 		}
 
-		int slotsOnPage = this.slotsOnCurrentPage();
-		double sectorAngle = Math.PI * 2.0 / slotsOnPage;
+		this.activeRing = ring;
+		int count = ring == ActiveRing.EQUIPMENT ? EQUIPMENT_MENU_SLOTS.length : this.slotsOnCurrentPage();
+		int current = ring == ActiveRing.EQUIPMENT ? this.equipmentCursor : this.inventoryCursor;
+		double sector = Math.PI * 2.0 / count;
 		double angle = normalizeAngle(Math.atan2(x, -y));
-		double selectedCenter = this.selectedSlotOnPage * sectorAngle;
-		double distance = Math.abs(shortestAngle(angle - selectedCenter));
-		if (distance > sectorAngle / 2.0 + ANGLE_HYSTERESIS) {
-			this.selectedSlotOnPage = Math.floorMod(
-					(int) Math.round(angle / sectorAngle), slotsOnPage);
+		if (Math.abs(shortestAngle(angle - current * sector)) > sector / 2.0 + ANGLE_HYSTERESIS) {
+			int next = Math.floorMod((int) Math.round(angle / sector), count);
+			if (ring == ActiveRing.EQUIPMENT) {
+				this.equipmentCursor = next;
+			} else {
+				this.inventoryCursor = next;
+			}
 		}
 	}
 
-	private void changePage(int direction) {
+	private void changeActivePage(int direction) {
+		if (this.activeRing != ActiveRing.INVENTORY) {
+			return;
+		}
 		this.currentPage = Math.floorMod(this.currentPage + direction, PAGE_COUNT);
-		this.selectedSlotOnPage = Math.min(this.selectedSlotOnPage, this.slotsOnCurrentPage() - 1);
+		this.inventoryCursor = Math.min(this.inventoryCursor, this.slotsOnCurrentPage() - 1);
 	}
 
-	private void handleMoveButton(boolean pressed) {
+	private void handleDpadTransfer(boolean pressed) {
 		long now = System.nanoTime();
-		if (pressed && !this.previousMoveButton) {
-			this.moveFromRing = this.chooseMoveDirection();
-			this.moveOneItem();
-			this.nextMoveRepeatAt = now + MOVE_INITIAL_DELAY_NANOS;
-		} else if (pressed && now >= this.nextMoveRepeatAt) {
-			this.moveOneItem();
-			this.nextMoveRepeatAt = now + MOVE_REPEAT_NANOS;
+		if (pressed && !this.previousDpadDown) {
+			this.dpadFromInventory = this.chooseFirstSource(this.inventoryMenuSlot(), this.hotbarMenuSlot());
+			this.moveOne(this.inventoryMenuSlot(), this.hotbarMenuSlot(), this.dpadFromInventory);
+			this.nextDpadRepeat = now + INITIAL_REPEAT_DELAY;
+		} else if (pressed && now >= this.nextDpadRepeat) {
+			this.moveOne(this.inventoryMenuSlot(), this.hotbarMenuSlot(), this.dpadFromInventory);
+			this.nextDpadRepeat = now + REPEAT_INTERVAL;
 		}
 	}
 
-	private boolean chooseMoveDirection() {
+	private void handleATransfer(boolean pressed) {
+		long now = System.nanoTime();
+		if (pressed && !this.previousA) {
+			this.aFromEquipment = this.chooseFirstSource(this.equipmentMenuSlot(), this.inventoryMenuSlot());
+			this.moveOne(this.equipmentMenuSlot(), this.inventoryMenuSlot(), this.aFromEquipment);
+			this.nextARepeat = now + INITIAL_REPEAT_DELAY;
+		} else if (pressed && now >= this.nextARepeat) {
+			this.moveOne(this.equipmentMenuSlot(), this.inventoryMenuSlot(), this.aFromEquipment);
+			this.nextARepeat = now + REPEAT_INTERVAL;
+		}
+	}
+
+	private boolean chooseFirstSource(int firstSlot, int secondSlot) {
 		if (this.minecraft == null || this.minecraft.player == null) {
 			return true;
 		}
-
-		Inventory inventory = this.minecraft.player.getInventory();
-		ItemStack ringStack = inventory.getItem(this.selectedInventorySlot());
-		ItemStack hotbarStack = inventory.getItem(this.hotbarCursor);
-		return !ringStack.isEmpty() || hotbarStack.isEmpty();
+		ItemStack first = this.minecraft.player.inventoryMenu.getSlot(firstSlot).getItem();
+		ItemStack second = this.minecraft.player.inventoryMenu.getSlot(secondSlot).getItem();
+		return !first.isEmpty() || second.isEmpty();
 	}
 
-	private void moveOneItem() {
+	private void moveOne(int firstSlot, int secondSlot, boolean fromFirst) {
 		if (this.minecraft == null || this.minecraft.player == null || this.minecraft.gameMode == null) {
 			return;
 		}
 
-		Inventory inventory = this.minecraft.player.getInventory();
-		int ringInventorySlot = this.selectedInventorySlot();
-		ItemStack source = this.moveFromRing
-				? inventory.getItem(ringInventorySlot)
-				: inventory.getItem(this.hotbarCursor);
-		ItemStack target = this.moveFromRing
-				? inventory.getItem(this.hotbarCursor)
-				: inventory.getItem(ringInventorySlot);
-		if (source.isEmpty()
+		int sourceIndex = fromFirst ? firstSlot : secondSlot;
+		int targetIndex = fromFirst ? secondSlot : firstSlot;
+		Slot sourceSlot = this.minecraft.player.inventoryMenu.getSlot(sourceIndex);
+		Slot targetSlot = this.minecraft.player.inventoryMenu.getSlot(targetIndex);
+		ItemStack source = sourceSlot.getItem();
+		ItemStack target = targetSlot.getItem();
+		if (source.isEmpty() || !sourceSlot.mayPickup(this.minecraft.player) || !targetSlot.mayPlace(source)
 				|| (!target.isEmpty() && !ItemStack.isSameItemSameComponents(source, target))
-				|| (!target.isEmpty() && target.getCount() >= target.getMaxStackSize())) {
+				|| (!target.isEmpty() && target.getCount() >= targetSlot.getMaxStackSize(source))) {
 			return;
 		}
 
-		int sourceMenuSlot = this.moveFromRing
-				? ringInventorySlot
-				: InventoryMenu.USE_ROW_SLOT_START + this.hotbarCursor;
-		int targetMenuSlot = this.moveFromRing
-				? InventoryMenu.USE_ROW_SLOT_START + this.hotbarCursor
-				: ringInventorySlot;
 		int containerId = this.minecraft.player.inventoryMenu.containerId;
-
-		// Pick up the stack, place one unit with a right click, then return the remainder.
 		this.minecraft.gameMode.handleContainerInput(
-				containerId, sourceMenuSlot, 0, ContainerInput.PICKUP, this.minecraft.player);
+				containerId, sourceIndex, 0, ContainerInput.PICKUP, this.minecraft.player);
 		this.minecraft.gameMode.handleContainerInput(
-				containerId, targetMenuSlot, 1, ContainerInput.PICKUP, this.minecraft.player);
+				containerId, targetIndex, 1, ContainerInput.PICKUP, this.minecraft.player);
 		this.minecraft.gameMode.handleContainerInput(
-				containerId, sourceMenuSlot, 0, ContainerInput.PICKUP, this.minecraft.player);
-	}
-
-	private int findController() {
-		if (this.activeController >= GLFW.GLFW_JOYSTICK_1
-				&& this.activeController <= GLFW.GLFW_JOYSTICK_LAST
-				&& GLFW.glfwJoystickPresent(this.activeController)) {
-			this.mappedGamepad = GLFW.glfwJoystickIsGamepad(this.activeController);
-			return this.activeController;
-		}
-		for (int joystick = GLFW.GLFW_JOYSTICK_1; joystick <= GLFW.GLFW_JOYSTICK_LAST; joystick++) {
-			if (GLFW.glfwJoystickIsGamepad(joystick)) {
-				this.mappedGamepad = true;
-				return joystick;
-			}
-		}
-		for (int joystick = GLFW.GLFW_JOYSTICK_1; joystick <= GLFW.GLFW_JOYSTICK_LAST; joystick++) {
-			if (!GLFW.glfwJoystickPresent(joystick)) {
-				continue;
-			}
-			FloatBuffer axes = GLFW.glfwGetJoystickAxes(joystick);
-			String name = GLFW.glfwGetJoystickName(joystick);
-			String normalizedName = name == null ? "" : name.toLowerCase();
-			if (axes != null && axes.remaining() >= 6
-					&& (normalizedName.contains("x-box") || normalizedName.contains("xbox")
-					|| normalizedName.contains("controller") || normalizedName.contains("gamepad"))) {
-				this.mappedGamepad = false;
-				return joystick;
-			}
-		}
-		return -1;
-	}
-
-	private void resetButtonStates() {
-		this.previousMoveButton = false;
-		this.previousBackButton = false;
-		this.previousLeftBumper = false;
-		this.previousRightBumper = false;
-		this.previousLeftTrigger = false;
-		this.previousRightTrigger = false;
+				containerId, sourceIndex, 0, ContainerInput.PICKUP, this.minecraft.player);
 	}
 
 	@Override
@@ -278,36 +192,86 @@ public final class RadialInventoryScreen extends Screen {
 			return;
 		}
 
-		Inventory inventory = this.minecraft.player.getInventory();
-		int centerX = this.width / 2;
 		int centerY = Math.max(100, this.height / 2 - 10);
-		int radius = Math.min(86, Math.max(68, Math.min(this.width / 2 - 24, (this.height - 76) / 2)));
-		int slotsOnPage = this.slotsOnCurrentPage();
-		double sectorAngle = Math.PI * 2.0 / slotsOnPage;
+		int spacing = Math.min(112, Math.max(82, this.width / 4));
+		int leftCenterX = this.width / 2 - spacing;
+		int rightCenterX = this.width / 2 + spacing;
+		int radius = Math.min(68, Math.max(52, Math.min(spacing - 22, (this.height - 78) / 2)));
 
-		graphics.centeredText(this.font, this.title, centerX, 10, 0xFFFFFFFF);
+		graphics.centeredText(this.font, this.title, this.width / 2, 9, 0xFFFFFFFF);
 		graphics.centeredText(this.font,
-				this.activeController >= 0
-						? this.controllerName + (this.mappedGamepad ? "" : " (Raw)")
+				this.controller.connected()
+						? this.controller.name() + (this.controller.mapped() ? "" : " (Raw)")
 						: "Controller nicht erkannt",
-				centerX, 22, this.activeController >= 0 ? 0xFFB8C4D6 : 0xFFFF8A80);
+				this.width / 2, 21, this.controller.connected() ? 0xFFB8C4D6 : 0xFFFF8A80);
 
-		for (int pageSlot = 0; pageSlot < slotsOnPage; pageSlot++) {
-			double angle = pageSlot * sectorAngle;
-			int left = (int) Math.round(centerX + Math.sin(angle) * radius) - SLOT_SIZE / 2;
-			int top = (int) Math.round(centerY - Math.cos(angle) * radius) - SLOT_SIZE / 2;
-			int inventorySlot = MAIN_SLOT_OFFSET + this.currentPage * PAGE_SIZE + pageSlot;
-			this.extractSlot(graphics, inventory.getItem(inventorySlot), left, top,
-					pageSlot == this.selectedSlotOnPage, 1 + inventorySlot);
+		this.extractEquipmentRing(graphics, leftCenterX, centerY, radius);
+		this.extractInventoryRing(graphics, rightCenterX, centerY, radius);
+		this.extractHotbar(graphics);
+	}
+
+	private void extractEquipmentRing(GuiGraphicsExtractor graphics, int centerX, int centerY, int radius) {
+		this.extractRingTitle(graphics, "Ausstattung", centerX, centerY, this.activeRing == ActiveRing.EQUIPMENT);
+		double sector = Math.PI * 2.0 / EQUIPMENT_MENU_SLOTS.length;
+		for (int i = 0; i < EQUIPMENT_MENU_SLOTS.length; i++) {
+			this.extractRingSlot(graphics, this.menuStack(EQUIPMENT_MENU_SLOTS[i]), centerX, centerY, radius,
+					i, EQUIPMENT_MENU_SLOTS.length, i == this.equipmentCursor, 300 + i);
 		}
+		this.extractDetails(graphics, this.menuStack(this.equipmentMenuSlot()), centerX, centerY, "Seite 1/1");
+	}
 
-		this.extractSelectionDetails(graphics, inventory.getItem(this.selectedInventorySlot()), centerX, centerY);
-		this.extractHotbar(graphics, inventory);
+	private void extractInventoryRing(GuiGraphicsExtractor graphics, int centerX, int centerY, int radius) {
+		this.extractRingTitle(graphics, "Inventar", centerX, centerY, this.activeRing == ActiveRing.INVENTORY);
+		int count = this.slotsOnCurrentPage();
+		for (int i = 0; i < count; i++) {
+			int menuSlot = InventoryMenu.INV_SLOT_START + this.currentPage * PAGE_SIZE + i;
+			this.extractRingSlot(graphics, this.menuStack(menuSlot), centerX, centerY, radius,
+					i, count, i == this.inventoryCursor, menuSlot);
+		}
+		this.extractDetails(graphics, this.menuStack(this.inventoryMenuSlot()), centerX, centerY,
+				"Seite " + (this.currentPage + 1) + "/" + PAGE_COUNT);
+	}
+
+	private void extractRingTitle(
+			GuiGraphicsExtractor graphics, String title, int centerX, int centerY, boolean active) {
+		graphics.centeredText(this.font, title, centerX, centerY - 8,
+				active ? 0xFFF4D35E : 0xFFB8C4D6);
+	}
+
+	private void extractRingSlot(
+			GuiGraphicsExtractor graphics, ItemStack stack, int centerX, int centerY, int radius,
+			int position, int count, boolean selected, int seed) {
+		double angle = position * Math.PI * 2.0 / count;
+		int left = (int) Math.round(centerX + Math.sin(angle) * radius) - SLOT_SIZE / 2;
+		int top = (int) Math.round(centerY - Math.cos(angle) * radius) - SLOT_SIZE / 2;
+		this.extractSlot(graphics, stack, left, top, selected, seed);
+	}
+
+	private void extractDetails(
+			GuiGraphicsExtractor graphics, ItemStack stack, int centerX, int centerY, String pageText) {
+		graphics.fill(centerX - 43, centerY + 4, centerX + 43, centerY + 31, 0xB010141A);
+		graphics.centeredText(this.font, pageText, centerX, centerY + 20, 0xFF9AA4B2);
+		if (stack.isEmpty()) {
+			return;
+		}
+		List<Component> tooltip = Screen.getTooltipFromItem(this.minecraft, stack);
+		if (!tooltip.isEmpty()) {
+			graphics.centeredText(this.font, tooltip.getFirst(), centerX, centerY + 7, 0xFFFFFFFF);
+		}
+	}
+
+	private void extractHotbar(GuiGraphicsExtractor graphics) {
+		int totalWidth = Inventory.getSelectionSize() * SLOT_SIZE;
+		int left = (this.width - totalWidth) / 2;
+		int top = this.height - SLOT_SIZE - 7;
+		for (int i = 0; i < Inventory.getSelectionSize(); i++) {
+			this.extractSlot(graphics, this.menuStack(InventoryMenu.USE_ROW_SLOT_START + i),
+					left + i * SLOT_SIZE, top, i == this.hotbarCursor, 400 + i);
+		}
 	}
 
 	private void extractSlot(
-			GuiGraphicsExtractor graphics, ItemStack stack,
-			int left, int top, boolean selected, int seed) {
+			GuiGraphicsExtractor graphics, ItemStack stack, int left, int top, boolean selected, int seed) {
 		graphics.fill(left, top, left + SLOT_SIZE, top + SLOT_SIZE,
 				selected ? 0xDD28313D : 0xB010141A);
 		graphics.outline(left, top, SLOT_SIZE, SLOT_SIZE,
@@ -316,48 +280,39 @@ public final class RadialInventoryScreen extends Screen {
 			graphics.outline(left - 1, top - 1, SLOT_SIZE + 2, SLOT_SIZE + 2, 0xFFFFFFFF);
 		}
 		if (!stack.isEmpty()) {
-			int itemX = left + ITEM_OFFSET;
-			int itemY = top + ITEM_OFFSET;
-			graphics.item(this.minecraft.player, stack, itemX, itemY, seed);
-			graphics.itemDecorations(this.font, stack, itemX, itemY);
+			graphics.item(this.minecraft.player, stack, left + 2, top + 2, seed);
+			graphics.itemDecorations(this.font, stack, left + 2, top + 2);
 		}
 	}
 
-	private void extractSelectionDetails(
-			GuiGraphicsExtractor graphics, ItemStack stack, int centerX, int centerY) {
-		graphics.fill(centerX - 49, centerY - 32, centerX + 49, centerY + 33, 0xB010141A);
-		graphics.outline(centerX - 49, centerY - 32, 98, 65, 0x806E747C);
-		graphics.centeredText(this.font, "Seite " + (this.currentPage + 1) + "/" + PAGE_COUNT,
-				centerX, centerY + 20, 0xFFF4D35E);
-
-		if (stack.isEmpty()) {
-			return;
-		}
-
-		graphics.item(this.minecraft.player, stack, centerX - 8, centerY - 29, 100);
-		List<Component> tooltip = Screen.getTooltipFromItem(this.minecraft, stack);
-		int lines = Math.min(3, tooltip.size());
-		for (int line = 0; line < lines; line++) {
-			graphics.centeredText(this.font, tooltip.get(line), centerX, centerY - 9 + line * 10, 0xFFFFFFFF);
-		}
-	}
-
-	private void extractHotbar(GuiGraphicsExtractor graphics, Inventory inventory) {
-		int totalWidth = Inventory.getSelectionSize() * SLOT_SIZE;
-		int left = (this.width - totalWidth) / 2;
-		int top = this.height - SLOT_SIZE - 8;
-		for (int slot = 0; slot < Inventory.getSelectionSize(); slot++) {
-			this.extractSlot(graphics, inventory.getItem(slot), left + slot * SLOT_SIZE, top,
-					slot == this.hotbarCursor, 200 + slot);
-		}
+	private ItemStack menuStack(int menuSlot) {
+		return this.minecraft.player.inventoryMenu.getSlot(menuSlot).getItem();
 	}
 
 	private int slotsOnCurrentPage() {
 		return Math.min(PAGE_SIZE, MAIN_SLOT_COUNT - this.currentPage * PAGE_SIZE);
 	}
 
-	private int selectedInventorySlot() {
-		return MAIN_SLOT_OFFSET + this.currentPage * PAGE_SIZE + this.selectedSlotOnPage;
+	private int inventoryMenuSlot() {
+		return InventoryMenu.INV_SLOT_START + this.currentPage * PAGE_SIZE + this.inventoryCursor;
+	}
+
+	private int equipmentMenuSlot() {
+		return EQUIPMENT_MENU_SLOTS[this.equipmentCursor];
+	}
+
+	private int hotbarMenuSlot() {
+		return InventoryMenu.USE_ROW_SLOT_START + this.hotbarCursor;
+	}
+
+	private void resetButtons() {
+		this.previousLeftBumper = false;
+		this.previousRightBumper = false;
+		this.previousLeftTrigger = false;
+		this.previousRightTrigger = false;
+		this.previousDpadDown = false;
+		this.previousA = false;
+		this.previousB = false;
 	}
 
 	private static double normalizeAngle(double angle) {
