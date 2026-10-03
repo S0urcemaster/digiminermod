@@ -268,10 +268,10 @@ public final class RadialInventoryScreen extends Screen {
 				? (this.currentPage + 1) + "/" + PAGE_COUNT
 				: "1/1";
 		graphics.centeredText(this.font,
-				"[RS] Inventory  |  [LS] Inventory  |  [LB/RB] Hotbar  |  [LT/RT] " + activePage,
+				"[RS] Inventory  [LS] Inventory  [LB/RB] Hotbar  [LT/RT] " + activePage,
 				this.width / 2, hotbarTop - 23, 0xFFDEE5EF);
 		graphics.centeredText(this.font,
-				"[D-pad Down] Inventory <-> Hotbar  |  [A] Inventory <-> Inventory  |  [View] Close",
+				"[D-pad Down] Inventory <-> Hotbar  [A] Inventory <-> Inventory  [View] Close",
 				this.width / 2, hotbarTop - 12, 0xFFB8C4D6);
 	}
 
