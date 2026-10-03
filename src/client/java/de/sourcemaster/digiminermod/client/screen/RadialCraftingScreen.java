@@ -7,6 +7,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.entity.player.StackedItemContents;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.inventory.CraftingMenu;
 import net.minecraft.world.item.ItemStack;
@@ -97,6 +98,8 @@ public final class RadialCraftingScreen extends Screen {
 		boolean dpad = this.controller.pressed(config.binding(ControllerAction.INVENTORY_TRANSFER_HOTBAR));
 		if (a && !this.previousA && this.focus == Focus.HOTBAR && this.hotbarPage == 1) {
 			config.setStartStopMining(!config.startStopMining());
+		} else if (a && !this.previousA && this.focus == Focus.CRAFTING && this.leftPage == LeftPage.RECIPES) {
+			this.placeSelectedRecipe();
 		} else if (a && !this.previousA && this.focus != Focus.HOTBAR && this.leftPage != LeftPage.RECIPES) {
 			int crafting = 1 + this.craftCursor;
 			int inventory = this.inventorySlot();
@@ -287,6 +290,7 @@ public final class RadialCraftingScreen extends Screen {
 
 		List<RecipeSuggestion> matches = new ArrayList<>();
 		for (RecipeDisplayEntry entry : all) {
+			if (fitsInTwoByTwo(entry)) continue;
 			if (entry.craftingRequirements().isEmpty()
 					|| entry.craftingRequirements().get().stream().noneMatch(ingredient -> ingredient.test(selected))) continue;
 			ItemStack output = entry.display().result().resolveForFirstStack(context);
@@ -298,12 +302,33 @@ public final class RadialCraftingScreen extends Screen {
 			}
 			int score = dependencies * 100 + (output.isDamageableItem() ? 40 : 0)
 					+ (output.getItem() instanceof BlockItem ? 10 : 0);
-			matches.add(new RecipeSuggestion(output, recipeGrid(entry, context), score));
+			matches.add(new RecipeSuggestion(entry, output, recipeGrid(entry, context), score));
 		}
 		matches.sort(Comparator.comparingInt(RecipeSuggestion::score).reversed()
 				.thenComparing(suggestion -> suggestion.output().getHoverName().getString()));
 		this.recipeSuggestions = List.copyOf(matches.subList(0, Math.min(PAGE_SIZE, matches.size())));
 		this.recipeCursor = Math.min(this.recipeCursor, Math.max(0, this.recipeSuggestions.size() - 1));
+	}
+
+	private void placeSelectedRecipe() {
+		if (this.minecraft == null || this.minecraft.player == null || this.minecraft.gameMode == null
+				|| this.recipeSuggestions.isEmpty()) return;
+		RecipeSuggestion suggestion = this.recipeSuggestions.get(this.recipeCursor);
+		StackedItemContents contents = new StackedItemContents();
+		this.minecraft.player.getInventory().fillStackedContents(contents);
+		this.menu.fillCraftSlotsStackedContents(contents);
+		if (!suggestion.entry().canCraft(contents)) return;
+		this.minecraft.gameMode.handlePlaceRecipe(this.menu.containerId, suggestion.entry().id(), false);
+		this.leftPage = LeftPage.CRAFTING;
+		this.focus = Focus.CRAFTING;
+	}
+
+	private static boolean fitsInTwoByTwo(RecipeDisplayEntry entry) {
+		if (entry.display() instanceof ShapedCraftingRecipeDisplay shaped) {
+			return shaped.width() <= 2 && shaped.height() <= 2;
+		}
+		return entry.display() instanceof ShapelessCraftingRecipeDisplay shapeless
+				&& shapeless.ingredients().size() <= 4;
 	}
 
 	private static List<ItemStack> recipeGrid(RecipeDisplayEntry entry, net.minecraft.util.context.ContextMap context) {
@@ -325,7 +350,7 @@ public final class RadialCraftingScreen extends Screen {
 	}
 
 	private int inventorySlot() { return 10 + this.page * PAGE_SIZE + this.inventoryCursor; }
-	private record RecipeSuggestion(ItemStack output, List<ItemStack> grid, int score) {}
+	private record RecipeSuggestion(RecipeDisplayEntry entry, ItemStack output, List<ItemStack> grid, int score) {}
 
 	@Override public void onClose() { if (this.minecraft != null && this.minecraft.player != null) this.minecraft.player.closeContainer(); }
 	@Override public boolean isPauseScreen() { return false; }
