@@ -26,6 +26,9 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import java.util.Set;
 import java.util.UUID;
+import net.fabricmc.fabric.api.menu.v1.ExtendedMenuType;
+import net.minecraft.world.inventory.MenuType;
+import de.sourcemaster.digiminermod.drone.DroneMenu;
 import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
@@ -33,6 +36,7 @@ import org.slf4j.LoggerFactory;
 
 public final class DigiMinerMod implements ModInitializer {
 	public static final String MOD_ID = "digiminermod";
+	private static final String DRONE_LOCATION_TAG = MOD_ID + ".drone_location|";
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 	public static final ResourceKey<Item> SPAWNER_SCANNER_KEY = ResourceKey.create(Registries.ITEM, id("spawner_scanner"));
 	public static final Item SPAWNER_SCANNER = Registry.register(BuiltInRegistries.ITEM, SPAWNER_SCANNER_KEY,
@@ -55,6 +59,9 @@ public final class DigiMinerMod implements ModInitializer {
 	public static final BlockEntityType<DroneBlockEntity> DRONE_BLOCK_ENTITY = Registry.register(
 			BuiltInRegistries.BLOCK_ENTITY_TYPE, DRONE_BLOCK_ENTITY_KEY,
 			new BlockEntityType<>(DroneBlockEntity::new, Set.of(DRONE_BLOCK)));
+	public static final ResourceKey<MenuType<?>> DRONE_MENU_KEY = ResourceKey.create(Registries.MENU, id("drone"));
+	public static final MenuType<DroneMenu> DRONE_MENU = Registry.register(BuiltInRegistries.MENU, DRONE_MENU_KEY,
+			new ExtendedMenuType<>(DroneMenu::new, net.minecraft.core.BlockPos.STREAM_CODEC.cast()));
 
 	@Override
 	public void onInitialize() {
@@ -97,14 +104,49 @@ public final class DigiMinerMod implements ModInitializer {
 		for (var level : owner.level().getServer().getAllLevels()) {
 			for (var entity : level.getAllEntities()) if (entity instanceof DroneEntity drone) drone.discard();
 		}
+		DroneBlockEntity remembered = findRememberedDrone(owner);
+		DroneBlockEntity found = remembered;
 		for (var pos : net.minecraft.core.BlockPos.betweenClosed(owner.blockPosition().offset(-32, -16, -32),
 				owner.blockPosition().offset(32, 16, 32))) {
-			if (owner.level().getBlockEntity(pos) instanceof DroneBlockEntity drone && drone.isOwner(owner)) return;
+			if (!owner.level().getBlockState(pos).is(DRONE_BLOCK)) continue;
+			if (owner.level().getBlockEntity(pos) instanceof DroneBlockEntity drone && drone.isOwner(owner)) {
+				if (found == null) found = drone;
+				else if (found != drone) owner.level().setBlock(pos, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
+			} else {
+				owner.level().setBlock(pos, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
+			}
 		}
+		if (found != null) { rememberDroneLocation(owner, found.getLevel(), found.getBlockPos()); return; }
 		var pos = owner.blockPosition().relative(owner.getDirection().getOpposite(), 3).above();
 		if (!owner.level().getBlockState(pos).canBeReplaced()) pos = owner.blockPosition().above(2);
 		owner.level().setBlock(pos, DRONE_BLOCK.defaultBlockState(), 3);
 		if (owner.level().getBlockEntity(pos) instanceof DroneBlockEntity drone) drone.restore(owner.getUUID(), DroneMode.FOLLOW, java.util.List.of());
+	}
+
+	private static DroneBlockEntity findRememberedDrone(net.minecraft.server.level.ServerPlayer owner) {
+		for (String tag : owner.entityTags()) {
+			if (!tag.startsWith(DRONE_LOCATION_TAG)) continue;
+			try {
+				String[] parts = tag.substring(DRONE_LOCATION_TAG.length()).split("\\|");
+				if (parts.length != 4) continue;
+				var dimension = ResourceKey.create(Registries.DIMENSION, Identifier.parse(parts[0]));
+				var level = owner.level().getServer().getLevel(dimension);
+				if (level == null) continue;
+				var pos = new net.minecraft.core.BlockPos(Integer.parseInt(parts[1]), Integer.parseInt(parts[2]), Integer.parseInt(parts[3]));
+				level.getChunkAt(pos);
+				if (level.getBlockEntity(pos) instanceof DroneBlockEntity drone && drone.isOwner(owner)) return drone;
+				if (level.getBlockState(pos).is(DRONE_BLOCK)) level.setBlock(pos, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
+			} catch (RuntimeException ignored) {
+				// A malformed legacy location is replaced below.
+			}
+		}
+		return null;
+	}
+
+	public static void rememberDroneLocation(net.minecraft.server.level.ServerPlayer owner,
+			net.minecraft.world.level.Level level, net.minecraft.core.BlockPos pos) {
+		owner.entityTags().removeIf(tag -> tag.startsWith(DRONE_LOCATION_TAG));
+		owner.addTag(DRONE_LOCATION_TAG + level.dimension().identifier() + "|" + pos.getX() + "|" + pos.getY() + "|" + pos.getZ());
 	}
 
 	public static void respawnDroneAtSpawn(net.minecraft.server.level.ServerLevel level, UUID owner, DroneMode mode,

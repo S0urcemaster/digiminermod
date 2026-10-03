@@ -18,6 +18,8 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.InteractionHand;
 
 public final class DroneBlock extends BaseEntityBlock {
 	public static final MapCodec<DroneBlock> CODEC = BlockBehaviour.simpleCodec(DroneBlock::new);
@@ -32,9 +34,19 @@ public final class DroneBlock extends BaseEntityBlock {
 
 	@Override
 	protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
+		return this.openDrone(level, pos, player);
+	}
+
+	@Override
+	protected InteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos,
+			Player player, InteractionHand hand, BlockHitResult hit) {
+		return this.openDrone(level, pos, player);
+	}
+
+	private InteractionResult openDrone(Level level, BlockPos pos, Player player) {
 		if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer
 				&& level.getBlockEntity(pos) instanceof DroneBlockEntity drone && drone.isOwner(player)) {
-			DroneNetworking.open(serverPlayer, drone);
+			serverPlayer.openMenu(drone);
 		}
 		return InteractionResult.SUCCESS;
 	}

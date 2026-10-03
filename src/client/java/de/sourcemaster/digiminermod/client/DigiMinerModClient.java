@@ -9,8 +9,8 @@ import de.sourcemaster.digiminermod.client.screen.RadialCraftingScreen;
 import de.sourcemaster.digiminermod.client.screen.DroneScreen;
 import de.sourcemaster.digiminermod.drone.DroneNetworking;
 import net.fabricmc.api.ClientModInitializer;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry;
+import net.minecraft.client.gui.screens.MenuScreens;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
@@ -35,8 +35,7 @@ public final class DigiMinerModClient implements ClientModInitializer {
 	public void onInitializeClient() {
 		instance = this;
 		EntityRendererRegistry.register(DigiMinerMod.DRONE, DroneRenderer::new);
-		ClientPlayNetworking.registerGlobalReceiver(DroneNetworking.OpenPayload.TYPE, (payload, context) ->
-				context.client().gui.setScreen(new DroneScreen(payload.blockPos(), payload.mode())));
+		MenuScreens.register(DigiMinerMod.DRONE_MENU, DroneScreen::new);
 		ScannerHud scannerHud = new ScannerHud();
 		HudElementRegistry.addLast(DigiMinerMod.id("spawner_scanner_hud"),
 				(graphics, deltaTracker) -> scannerHud.extract(graphics));
@@ -118,7 +117,7 @@ public final class DigiMinerModClient implements ClientModInitializer {
 			boolean menuPressed = controller.connected()
 					&& controller.pressed(DigiMinerConfig.get().binding(menuAction));
 			if (menuPressed && !this.previousMenuButton && client.player != null) {
-				if (client.gui.screen() instanceof RadialCraftingScreen) {
+				if (client.gui.screen() instanceof RadialCraftingScreen || client.gui.screen() instanceof DroneScreen) {
 					client.player.closeContainer();
 				} else if (inventoryOpen) {
 					client.gui.setScreen(null);
