@@ -1,0 +1,30 @@
+{
+	"schemaVersion": 1,
+	"id": "digiminermod",
+	"version": "${version}",
+	"name": "Digi Miner Mod",
+	"description": "Eine von Grund auf entwickelte Minecraft-Mod.",
+	"authors": [
+		"S0urcemaster"
+	],
+	"contact": {
+		"sources": "https://github.com/S0urcemaster/digiminermod"
+	},
+	"license": "CC0-1.0",
+	"icon": "assets/digiminermod/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"de.sourcemaster.digiminermod.DigiMinerMod"
+		],
+		"client": [
+			"de.sourcemaster.digiminermod.client.DigiMinerModClient"
+		]
+	},
+	"depends": {
+		"fabricloader": ">=0.19.5",
+		"minecraft": "~26.2",
+		"java": ">=25",
+		"fabric-api": "*"
+	}
+}
