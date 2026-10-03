@@ -8,6 +8,8 @@ import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 
 public final class ControllerSupport {
+	private static Snapshot current = Snapshot.NONE;
+
 	private ControllerSupport() {
 	}
 
@@ -20,9 +22,13 @@ public final class ControllerSupport {
 	}
 
 	public static Snapshot poll() {
+		return current;
+	}
+
+	public static Snapshot pollFrame() {
 		for (int joystick = GLFW.GLFW_JOYSTICK_1; joystick <= GLFW.GLFW_JOYSTICK_LAST; joystick++) {
 			if (GLFW.glfwJoystickIsGamepad(joystick)) {
-				return pollMapped(joystick);
+				return current = pollMapped(joystick);
 			}
 		}
 
@@ -37,11 +43,11 @@ public final class ControllerSupport {
 			if (axes != null && axes.remaining() >= 6
 					&& (normalizedName.contains("x-box") || normalizedName.contains("xbox")
 					|| normalizedName.contains("controller") || normalizedName.contains("gamepad"))) {
-				return pollRawXbox(joystick, name);
+				return current = pollRawXbox(joystick, name);
 			}
 		}
 
-		return Snapshot.NONE;
+		return current = Snapshot.NONE;
 	}
 
 	private static Snapshot pollMapped(int joystick) {

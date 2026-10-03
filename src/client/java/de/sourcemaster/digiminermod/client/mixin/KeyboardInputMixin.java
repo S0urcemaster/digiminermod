@@ -3,6 +3,8 @@ package de.sourcemaster.digiminermod.client.mixin;
 import de.sourcemaster.digiminermod.client.config.DigiMinerConfig;
 import de.sourcemaster.digiminermod.client.input.ControllerSupport;
 import de.sourcemaster.digiminermod.client.input.ControllerAction;
+import de.sourcemaster.digiminermod.client.screen.RadialInventoryScreen;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.ClientInput;
 import net.minecraft.client.player.KeyboardInput;
 import net.minecraft.world.entity.player.Input;
@@ -17,6 +19,9 @@ public abstract class KeyboardInputMixin extends ClientInput {
 
 	@Inject(method = "tick", at = @At("TAIL"))
 	private void digiminermod$addControllerMovement(CallbackInfo callbackInfo) {
+		if (Minecraft.getInstance().gui.screen() instanceof RadialInventoryScreen) {
+			return;
+		}
 		ControllerSupport.Snapshot controller = ControllerSupport.poll();
 		if (!controller.connected()) {
 			return;

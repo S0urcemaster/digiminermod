@@ -5,9 +5,11 @@ import de.sourcemaster.digiminermod.client.input.ControllerAction;
 import de.sourcemaster.digiminermod.client.input.ControllerSupport;
 import de.sourcemaster.digiminermod.client.screen.RadialInventoryScreen;
 import net.fabricmc.api.ClientModInitializer;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.minecraft.client.DeltaTracker;
+import net.minecraft.client.Minecraft;
 
 public final class DigiMinerModClient implements ClientModInitializer {
+	private static DigiMinerModClient instance;
 	private boolean previousMenuButton;
 	private double lookVelocityHorizontal;
 	private double lookVelocityVertical;
@@ -16,8 +18,16 @@ public final class DigiMinerModClient implements ClientModInitializer {
 
 	@Override
 	public void onInitializeClient() {
-		ClientTickEvents.END_CLIENT_TICK.register(client -> {
-			ControllerSupport.Snapshot controller = ControllerSupport.poll();
+		instance = this;
+	}
+
+	public static void updateControllerFrame(Minecraft client, DeltaTracker deltaTracker) {
+		if (instance != null) instance.updateFrame(client, deltaTracker);
+	}
+
+	private void updateFrame(Minecraft client, DeltaTracker deltaTracker) {
+			ControllerSupport.Snapshot controller = ControllerSupport.pollFrame();
+			double deltaSeconds = Math.min(0.1, deltaTracker.getRealtimeDeltaTicks() / 20.0);
 			if (controller.connected() && client.player != null && client.gui.screen() == null) {
 				DigiMinerConfig config = DigiMinerConfig.get();
 				boolean attack = controller.pressed(config.binding(ControllerAction.WORLD_ATTACK));
@@ -31,12 +41,12 @@ public final class DigiMinerModClient implements ClientModInitializer {
 				double targetHorizontal = lookX * config.lookSpeedHorizontal();
 				double targetVertical = lookY * config.lookSpeedVertical();
 				this.lookVelocityHorizontal = approach(this.lookVelocityHorizontal, targetHorizontal,
-						config.lookAccelerationHorizontal() / 20.0);
+						config.lookAccelerationHorizontal() * deltaSeconds);
 				this.lookVelocityVertical = approach(this.lookVelocityVertical, targetVertical,
-						config.lookAccelerationVertical() / 20.0);
-				// Entity.turn applies another factor of 0.15; at 20 ticks/s this yields degrees/s.
-				client.player.turn(this.lookVelocityHorizontal / 3.0,
-						this.lookVelocityVertical / 3.0 * (config.invertLookY() ? -1.0 : 1.0));
+						config.lookAccelerationVertical() * deltaSeconds);
+				// Entity.turn applies a factor of 0.15, so convert degrees/s to this frame's input.
+				client.player.turn(this.lookVelocityHorizontal * deltaSeconds / 0.15,
+						this.lookVelocityVertical * deltaSeconds / 0.15 * (config.invertLookY() ? -1.0 : 1.0));
 			} else {
 				if (this.controllerAttack) client.options.keyAttack.setDown(false);
 				if (this.controllerUse) client.options.keyUse.setDown(false);
@@ -57,7 +67,6 @@ public final class DigiMinerModClient implements ClientModInitializer {
 				}
 			}
 			this.previousMenuButton = menuPressed;
-		});
 	}
 
 	private static double approach(double current, double target, double maximumChange) {
