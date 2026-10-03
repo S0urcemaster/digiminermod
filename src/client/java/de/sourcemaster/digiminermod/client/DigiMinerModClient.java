@@ -15,6 +15,7 @@ public final class DigiMinerModClient implements ClientModInitializer {
 	private double lookVelocityVertical;
 	private boolean controllerAttack;
 	private boolean controllerUse;
+	private boolean previousPerspectiveButton;
 
 	@Override
 	public void onInitializeClient() {
@@ -32,10 +33,15 @@ public final class DigiMinerModClient implements ClientModInitializer {
 				DigiMinerConfig config = DigiMinerConfig.get();
 				boolean attack = controller.pressed(config.binding(ControllerAction.WORLD_ATTACK));
 				boolean use = controller.pressed(config.binding(ControllerAction.WORLD_USE));
+				boolean perspective = controller.pressed(config.binding(ControllerAction.WORLD_CHANGE_PERSPECTIVE));
 				if (attack != this.controllerAttack) client.options.keyAttack.setDown(attack);
 				if (use != this.controllerUse) client.options.keyUse.setDown(use);
 				this.controllerAttack = attack;
 				this.controllerUse = use;
+				if (perspective && !this.previousPerspectiveButton) {
+					client.options.setCameraType(client.options.getCameraType().cycle());
+				}
+				this.previousPerspectiveButton = perspective;
 				float lookX = ControllerSupport.applyDeadzone(controller.rightX(), (float) config.lookDeadzone());
 				float lookY = ControllerSupport.applyDeadzone(controller.rightY(), (float) config.lookDeadzone());
 				double targetHorizontal = lookX * config.lookSpeedHorizontal();
@@ -52,6 +58,8 @@ public final class DigiMinerModClient implements ClientModInitializer {
 				if (this.controllerUse) client.options.keyUse.setDown(false);
 				this.controllerAttack = false;
 				this.controllerUse = false;
+				this.previousPerspectiveButton = controller.connected()
+						&& controller.pressed(DigiMinerConfig.get().binding(ControllerAction.WORLD_CHANGE_PERSPECTIVE));
 				this.lookVelocityHorizontal = 0.0;
 				this.lookVelocityVertical = 0.0;
 			}
