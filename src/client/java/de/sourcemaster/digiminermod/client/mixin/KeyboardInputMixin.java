@@ -2,6 +2,7 @@ package de.sourcemaster.digiminermod.client.mixin;
 
 import de.sourcemaster.digiminermod.client.config.DigiMinerConfig;
 import de.sourcemaster.digiminermod.client.input.ControllerSupport;
+import de.sourcemaster.digiminermod.client.input.ControllerAction;
 import net.minecraft.client.player.ClientInput;
 import net.minecraft.client.player.KeyboardInput;
 import net.minecraft.world.entity.player.Input;
@@ -21,10 +22,16 @@ public abstract class KeyboardInputMixin extends ClientInput {
 			return;
 		}
 
-		float deadzone = (float) DigiMinerConfig.get().moveDeadzone();
+		DigiMinerConfig config = DigiMinerConfig.get();
+		boolean jump = this.keyPresses.jump() || controller.pressed(config.binding(ControllerAction.WORLD_JUMP));
+		boolean sneak = this.keyPresses.shift() || controller.pressed(config.binding(ControllerAction.WORLD_SNEAK));
+		boolean sprint = this.keyPresses.sprint() || controller.pressed(config.binding(ControllerAction.WORLD_SPRINT));
+		float deadzone = (float) config.moveDeadzone();
 		float sideways = -ControllerSupport.applyDeadzone(controller.leftX(), deadzone);
 		float forward = -ControllerSupport.applyDeadzone(controller.leftY(), deadzone);
 		if (sideways == 0.0F && forward == 0.0F) {
+			this.keyPresses = new Input(this.keyPresses.forward(), this.keyPresses.backward(),
+					this.keyPresses.left(), this.keyPresses.right(), jump, sneak, sprint);
 			return;
 		}
 
@@ -35,6 +42,6 @@ public abstract class KeyboardInputMixin extends ClientInput {
 		this.moveVector = movement;
 		this.keyPresses = new Input(
 				forward > 0.0F, forward < 0.0F, sideways > 0.0F, sideways < 0.0F,
-				this.keyPresses.jump(), this.keyPresses.shift(), this.keyPresses.sprint());
+				jump, sneak, sprint);
 	}
 }

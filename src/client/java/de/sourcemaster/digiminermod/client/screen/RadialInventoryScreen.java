@@ -2,6 +2,7 @@ package de.sourcemaster.digiminermod.client.screen;
 
 import de.sourcemaster.digiminermod.client.config.DigiMinerConfig;
 import de.sourcemaster.digiminermod.client.input.ControllerSupport;
+import de.sourcemaster.digiminermod.client.input.ControllerAction;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -37,7 +38,6 @@ public final class RadialInventoryScreen extends Screen {
 	private boolean previousRightTrigger;
 	private boolean previousDpadDown;
 	private boolean previousA;
-	private boolean previousB;
 	private boolean dpadFromInventory;
 	private boolean aFromEquipment;
 	private long nextDpadRepeat;
@@ -51,6 +51,7 @@ public final class RadialInventoryScreen extends Screen {
 	@Override
 	protected void init() {
 		super.init();
+		this.controller = ControllerSupport.poll();
 		if (this.minecraft != null && this.minecraft.player != null) {
 			this.hotbarCursor = this.minecraft.player.getInventory().getSelectedSlot();
 		}
@@ -68,15 +69,18 @@ public final class RadialInventoryScreen extends Screen {
 		this.updateStick(this.controller.leftX(), this.controller.leftY(), ActiveRing.EQUIPMENT);
 		this.updateStick(this.controller.rightX(), this.controller.rightY(), ActiveRing.INVENTORY);
 
-		if (this.controller.leftBumper() && !this.previousLeftBumper) {
+		DigiMinerConfig config = DigiMinerConfig.get();
+		boolean leftBumper = this.controller.pressed(config.binding(ControllerAction.INVENTORY_HOTBAR_PREVIOUS));
+		boolean rightBumper = this.controller.pressed(config.binding(ControllerAction.INVENTORY_HOTBAR_NEXT));
+		if (leftBumper && !this.previousLeftBumper) {
 			this.hotbarCursor = Math.floorMod(this.hotbarCursor - 1, Inventory.getSelectionSize());
 		}
-		if (this.controller.rightBumper() && !this.previousRightBumper) {
+		if (rightBumper && !this.previousRightBumper) {
 			this.hotbarCursor = (this.hotbarCursor + 1) % Inventory.getSelectionSize();
 		}
 
-		boolean leftTrigger = this.controller.leftTrigger() > 0.5F;
-		boolean rightTrigger = this.controller.rightTrigger() > 0.5F;
+		boolean leftTrigger = this.controller.pressed(config.binding(ControllerAction.INVENTORY_PAGE_PREVIOUS));
+		boolean rightTrigger = this.controller.pressed(config.binding(ControllerAction.INVENTORY_PAGE_NEXT));
 		if (leftTrigger && !this.previousLeftTrigger) {
 			this.changeActivePage(-1);
 		}
@@ -84,19 +88,17 @@ public final class RadialInventoryScreen extends Screen {
 			this.changeActivePage(1);
 		}
 
-		this.handleDpadTransfer(this.controller.dpadDown());
-		this.handleATransfer(this.controller.a());
-		if (this.controller.b() && !this.previousB) {
-			this.onClose();
-		}
+		boolean primaryTransfer = this.controller.pressed(config.binding(ControllerAction.INVENTORY_TRANSFER_HOTBAR));
+		boolean secondaryTransfer = this.controller.pressed(config.binding(ControllerAction.INVENTORY_TRANSFER_SECONDARY));
+		this.handleDpadTransfer(primaryTransfer);
+		this.handleATransfer(secondaryTransfer);
 
-		this.previousLeftBumper = this.controller.leftBumper();
-		this.previousRightBumper = this.controller.rightBumper();
+		this.previousLeftBumper = leftBumper;
+		this.previousRightBumper = rightBumper;
 		this.previousLeftTrigger = leftTrigger;
 		this.previousRightTrigger = rightTrigger;
-		this.previousDpadDown = this.controller.dpadDown();
-		this.previousA = this.controller.a();
-		this.previousB = this.controller.b();
+		this.previousDpadDown = primaryTransfer;
+		this.previousA = secondaryTransfer;
 	}
 
 	private void updateStick(float x, float y, ActiveRing ring) {
@@ -267,11 +269,17 @@ public final class RadialInventoryScreen extends Screen {
 		String activePage = this.activeRing == ActiveRing.INVENTORY
 				? (this.currentPage + 1) + "/" + PAGE_COUNT
 				: "1/1";
+		DigiMinerConfig config = DigiMinerConfig.get();
 		graphics.centeredText(this.font,
-				"[RS] Inventory  [LS] Inventory  [LB/RB] Hotbar  [LT/RT] " + activePage,
+				"[RS] Inventory  [LS] Inventory  [" + config.binding(ControllerAction.INVENTORY_HOTBAR_PREVIOUS).label()
+						+ "/" + config.binding(ControllerAction.INVENTORY_HOTBAR_NEXT).label() + "] Hotbar  ["
+						+ config.binding(ControllerAction.INVENTORY_PAGE_PREVIOUS).label() + "/"
+						+ config.binding(ControllerAction.INVENTORY_PAGE_NEXT).label() + "] " + activePage,
 				this.width / 2, hotbarTop - 23, 0xFFDEE5EF);
 		graphics.centeredText(this.font,
-				"[D-pad Down] Inventory <-> Hotbar  [A] Inventory <-> Inventory  [View] Close",
+				"[" + config.binding(ControllerAction.INVENTORY_TRANSFER_HOTBAR).label()
+						+ "] Inventory <-> Hotbar  [" + config.binding(ControllerAction.INVENTORY_TRANSFER_SECONDARY).label()
+						+ "] Inventory <-> Inventory  [" + config.binding(ControllerAction.INVENTORY_CLOSE).label() + "] Close",
 				this.width / 2, hotbarTop - 12, 0xFFB8C4D6);
 	}
 
@@ -327,7 +335,6 @@ public final class RadialInventoryScreen extends Screen {
 		this.previousRightTrigger = false;
 		this.previousDpadDown = false;
 		this.previousA = false;
-		this.previousB = false;
 	}
 
 	private static double normalizeAngle(double angle) {

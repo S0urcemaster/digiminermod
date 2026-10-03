@@ -42,6 +42,9 @@ public final class DigiMinerOptionsScreen extends Screen {
 				DigiMinerConfig.get().lookAccelerationHorizontal(), DigiMinerConfig.get()::setLookAccelerationHorizontal, Unit.ACCELERATION));
 		this.addRenderableWidget(new ConfigSlider(right, top + 72, 150, "Vertical accel.", 90.0, 3600.0,
 				DigiMinerConfig.get().lookAccelerationVertical(), DigiMinerConfig.get()::setLookAccelerationVertical, Unit.ACCELERATION));
+		this.addRenderableWidget(Button.builder(Component.literal("Controller bindings..."),
+				pressed -> this.minecraft.gui.setScreen(new ControllerBindingsScreen(this)))
+				.bounds(centerX - 100, top + 100, 200, 20).build());
 		this.addRenderableWidget(Button.builder(Component.literal("Done"), button -> this.onClose())
 				.bounds(centerX - 100, this.height - 28, 200, 20)
 				.build());

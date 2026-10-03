@@ -1,5 +1,7 @@
 package de.sourcemaster.digiminermod.client.config;
 
+import de.sourcemaster.digiminermod.client.input.ControllerAction;
+import de.sourcemaster.digiminermod.client.input.ControllerButton;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.IOException;
@@ -8,6 +10,7 @@ import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Properties;
+import java.util.EnumMap;
 
 public final class DigiMinerConfig {
 	private static final Path PATH = FabricLoader.getInstance().getConfigDir().resolve("digiminermod.properties");
@@ -21,8 +24,10 @@ public final class DigiMinerConfig {
 	private double lookAccelerationHorizontal = 1200.0;
 	private double lookAccelerationVertical = 1200.0;
 	private boolean invertLookY;
+	private final EnumMap<ControllerAction, ControllerButton> bindings = new EnumMap<>(ControllerAction.class);
 
 	private DigiMinerConfig() {
+		this.resetBindings(false);
 	}
 
 	public static DigiMinerConfig get() {
@@ -54,6 +59,17 @@ public final class DigiMinerConfig {
 	public void setLookAccelerationVertical(double value) { this.lookAccelerationVertical = clamp(value, 90.0, 3600.0); this.save(); }
 	public void setInvertLookY(boolean value) { this.invertLookY = value; this.save(); }
 
+	public ControllerButton binding(ControllerAction action) { return this.bindings.get(action); }
+	public void setBinding(ControllerAction action, ControllerButton button) { this.bindings.put(action, button); this.save(); }
+	public void resetBindings() { this.resetBindings(true); }
+
+	private void resetBindings(boolean save) {
+		for (ControllerAction action : ControllerAction.values()) {
+			this.bindings.put(action, action.defaultButton());
+		}
+		if (save) this.save();
+	}
+
 	private static DigiMinerConfig load() {
 		DigiMinerConfig config = new DigiMinerConfig();
 		if (!Files.isRegularFile(PATH)) {
@@ -73,6 +89,14 @@ public final class DigiMinerConfig {
 			config.lookAccelerationHorizontal = readDouble(properties, "lookAccelerationHorizontal", 1200.0, 90.0, 3600.0);
 			config.lookAccelerationVertical = readDouble(properties, "lookAccelerationVertical", 1200.0, 90.0, 3600.0);
 			config.invertLookY = Boolean.parseBoolean(properties.getProperty("invertLookY", "false"));
+			for (ControllerAction action : ControllerAction.values()) {
+				try {
+					config.bindings.put(action, ControllerButton.valueOf(properties.getProperty(
+							"binding." + action.name(), action.defaultButton().name())));
+				} catch (IllegalArgumentException ignored) {
+					config.bindings.put(action, action.defaultButton());
+				}
+			}
 		} catch (IOException ignored) {
 			// Keep defaults if an existing config cannot be read.
 		}
@@ -89,6 +113,9 @@ public final class DigiMinerConfig {
 		properties.setProperty("lookAccelerationHorizontal", Double.toString(this.lookAccelerationHorizontal));
 		properties.setProperty("lookAccelerationVertical", Double.toString(this.lookAccelerationVertical));
 		properties.setProperty("invertLookY", Boolean.toString(this.invertLookY));
+		for (ControllerAction action : ControllerAction.values()) {
+			properties.setProperty("binding." + action.name(), this.binding(action).name());
+		}
 		try {
 			Files.createDirectories(PATH.getParent());
 			try (Writer writer = Files.newBufferedWriter(PATH)) {
