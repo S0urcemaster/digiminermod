@@ -3,7 +3,7 @@
 	"package": "de.sourcemaster.digiminermod.client.mixin",
 	"compatibilityLevel": "JAVA_25",
 	"client": [
-		"HudMixin"
+		"GuiMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
