@@ -6,7 +6,11 @@ import de.sourcemaster.digiminermod.client.input.ControllerAction;
 import de.sourcemaster.digiminermod.client.input.ControllerSupport;
 import de.sourcemaster.digiminermod.client.screen.RadialInventoryScreen;
 import de.sourcemaster.digiminermod.client.screen.RadialCraftingScreen;
+import de.sourcemaster.digiminermod.client.screen.DroneScreen;
+import de.sourcemaster.digiminermod.drone.DroneNetworking;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
@@ -30,6 +34,9 @@ public final class DigiMinerModClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 		instance = this;
+		EntityRendererRegistry.register(DigiMinerMod.DRONE, DroneRenderer::new);
+		ClientPlayNetworking.registerGlobalReceiver(DroneNetworking.OpenPayload.TYPE, (payload, context) ->
+				context.client().gui.setScreen(new DroneScreen(payload.blockPos(), payload.mode())));
 		ScannerHud scannerHud = new ScannerHud();
 		HudElementRegistry.addLast(DigiMinerMod.id("spawner_scanner_hud"),
 				(graphics, deltaTracker) -> scannerHud.extract(graphics));
@@ -103,6 +110,7 @@ public final class DigiMinerModClient implements ClientModInitializer {
 			}
 			boolean inventoryOpen = client.gui.screen() instanceof RadialInventoryScreen
 					|| client.gui.screen() instanceof RadialCraftingScreen
+					|| client.gui.screen() instanceof DroneScreen
 					|| client.gui.screen() instanceof CreativeModeInventoryScreen
 					|| client.gui.screen() instanceof InventoryScreen;
 			ControllerAction menuAction = inventoryOpen

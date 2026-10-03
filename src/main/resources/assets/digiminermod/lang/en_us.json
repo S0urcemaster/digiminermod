@@ -1,4 +1,7 @@
 {
   "item.digiminermod.spawner_scanner": "Survey Scanner",
-  "item.digiminermod.iron_scanner": "Iron Scanner"
+  "item.digiminermod.iron_scanner": "Iron Scanner",
+  "item.digiminermod.drone_core": "Drone Core",
+  "entity.digiminermod.drone": "Drone"
+  ,"block.digiminermod.drone": "Drone"
 }
