@@ -10,6 +10,7 @@ public enum ControllerAction {
 	OPEN_INVENTORY("World: Open inventory", ControllerButton.VIEW),
 	INVENTORY_TRANSFER_HOTBAR("Inventory: Transfer hotbar", ControllerButton.DPAD_DOWN),
 	INVENTORY_TRANSFER_SECONDARY("Inventory: Transfer secondary", ControllerButton.A),
+	INVENTORY_TAKE_RESULT("Inventory: Take crafting result", ControllerButton.Y),
 	INVENTORY_HOTBAR_PREVIOUS("Inventory: Hotbar previous", ControllerButton.LB),
 	INVENTORY_HOTBAR_NEXT("Inventory: Hotbar next", ControllerButton.RB),
 	INVENTORY_PAGE_PREVIOUS("Inventory: Page previous", ControllerButton.LT),

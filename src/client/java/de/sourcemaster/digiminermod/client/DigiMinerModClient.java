@@ -5,12 +5,14 @@ import de.sourcemaster.digiminermod.client.config.DigiMinerConfig;
 import de.sourcemaster.digiminermod.client.input.ControllerAction;
 import de.sourcemaster.digiminermod.client.input.ControllerSupport;
 import de.sourcemaster.digiminermod.client.screen.RadialInventoryScreen;
+import de.sourcemaster.digiminermod.client.screen.RadialCraftingScreen;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
+import net.minecraft.world.entity.player.Inventory;
 
 public final class DigiMinerModClient implements ClientModInitializer {
 	private static DigiMinerModClient instance;
@@ -18,6 +20,10 @@ public final class DigiMinerModClient implements ClientModInitializer {
 	private double lookVelocityHorizontal;
 	private double lookVelocityVertical;
 	private boolean controllerAttack;
+	private boolean previousAttackButton;
+	private boolean miningLatched;
+	private boolean previousHotbarPrevious;
+	private boolean previousHotbarNext;
 	private boolean controllerUse;
 	private boolean previousPerspectiveButton;
 
@@ -38,12 +44,30 @@ public final class DigiMinerModClient implements ClientModInitializer {
 			double deltaSeconds = Math.min(0.1, deltaTracker.getRealtimeDeltaTicks() / 20.0);
 			if (controller.connected() && client.player != null && client.gui.screen() == null) {
 				DigiMinerConfig config = DigiMinerConfig.get();
-				boolean attack = controller.pressed(config.binding(ControllerAction.WORLD_ATTACK));
+				boolean attackButton = controller.pressed(config.binding(ControllerAction.WORLD_ATTACK));
+				if (config.startStopMining()) {
+					if (attackButton && !this.previousAttackButton) this.miningLatched = !this.miningLatched;
+				} else {
+					this.miningLatched = false;
+				}
+				boolean attack = config.startStopMining() ? this.miningLatched : attackButton;
 				boolean use = controller.pressed(config.binding(ControllerAction.WORLD_USE));
+				boolean hotbarPrevious = controller.pressed(config.binding(ControllerAction.INVENTORY_HOTBAR_PREVIOUS));
+				boolean hotbarNext = controller.pressed(config.binding(ControllerAction.INVENTORY_HOTBAR_NEXT));
+				int selectedSlot = client.player.getInventory().getSelectedSlot();
+				if (hotbarPrevious && !this.previousHotbarPrevious) {
+					client.player.getInventory().setSelectedSlot(Math.floorMod(selectedSlot - 1, Inventory.getSelectionSize()));
+				}
+				if (hotbarNext && !this.previousHotbarNext) {
+					client.player.getInventory().setSelectedSlot((selectedSlot + 1) % Inventory.getSelectionSize());
+				}
+				this.previousHotbarPrevious = hotbarPrevious;
+				this.previousHotbarNext = hotbarNext;
 				boolean perspective = controller.pressed(config.binding(ControllerAction.WORLD_CHANGE_PERSPECTIVE));
 				if (attack != this.controllerAttack) client.options.keyAttack.setDown(attack);
 				if (use != this.controllerUse) client.options.keyUse.setDown(use);
 				this.controllerAttack = attack;
+				this.previousAttackButton = attackButton;
 				this.controllerUse = use;
 				if (perspective && !this.previousPerspectiveButton) {
 					client.options.setCameraType(client.options.getCameraType().cycle());
@@ -64,6 +88,13 @@ public final class DigiMinerModClient implements ClientModInitializer {
 				if (this.controllerAttack) client.options.keyAttack.setDown(false);
 				if (this.controllerUse) client.options.keyUse.setDown(false);
 				this.controllerAttack = false;
+				this.previousAttackButton = controller.connected()
+						&& controller.pressed(DigiMinerConfig.get().binding(ControllerAction.WORLD_ATTACK));
+				this.miningLatched = false;
+				this.previousHotbarPrevious = controller.connected()
+						&& controller.pressed(DigiMinerConfig.get().binding(ControllerAction.INVENTORY_HOTBAR_PREVIOUS));
+				this.previousHotbarNext = controller.connected()
+						&& controller.pressed(DigiMinerConfig.get().binding(ControllerAction.INVENTORY_HOTBAR_NEXT));
 				this.controllerUse = false;
 				this.previousPerspectiveButton = controller.connected()
 						&& controller.pressed(DigiMinerConfig.get().binding(ControllerAction.WORLD_CHANGE_PERSPECTIVE));
@@ -71,6 +102,7 @@ public final class DigiMinerModClient implements ClientModInitializer {
 				this.lookVelocityVertical = 0.0;
 			}
 			boolean inventoryOpen = client.gui.screen() instanceof RadialInventoryScreen
+					|| client.gui.screen() instanceof RadialCraftingScreen
 					|| client.gui.screen() instanceof CreativeModeInventoryScreen
 					|| client.gui.screen() instanceof InventoryScreen;
 			ControllerAction menuAction = inventoryOpen
@@ -78,7 +110,9 @@ public final class DigiMinerModClient implements ClientModInitializer {
 			boolean menuPressed = controller.connected()
 					&& controller.pressed(DigiMinerConfig.get().binding(menuAction));
 			if (menuPressed && !this.previousMenuButton && client.player != null) {
-				if (inventoryOpen) {
+				if (client.gui.screen() instanceof RadialCraftingScreen) {
+					client.player.closeContainer();
+				} else if (inventoryOpen) {
 					client.gui.setScreen(null);
 				} else if (client.gui.screen() == null) {
 					client.gui.setScreen(client.player.hasInfiniteMaterials()
