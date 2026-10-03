@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "key": {
+    "C": "minecraft:copper_ingot",
+    "I": "minecraft:iron_ingot",
+    "R": "minecraft:redstone",
+    "X": "minecraft:compass"
+  },
+  "pattern": [
+    " I ",
+    "CXC",
+    " R "
+  ],
+  "result": {
+    "id": "digiminermod:spawner_scanner"
+  }
+}

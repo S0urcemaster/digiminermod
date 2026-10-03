@@ -3,6 +3,11 @@ package de.sourcemaster.digiminermod;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import org.slf4j.Logger;
@@ -11,6 +16,9 @@ import org.slf4j.LoggerFactory;
 public final class DigiMinerMod implements ModInitializer {
 	public static final String MOD_ID = "digiminermod";
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
+	public static final ResourceKey<Item> SPAWNER_SCANNER_KEY = ResourceKey.create(Registries.ITEM, id("spawner_scanner"));
+	public static final Item SPAWNER_SCANNER = Registry.register(BuiltInRegistries.ITEM, SPAWNER_SCANNER_KEY,
+			new Item(new Item.Properties().setId(SPAWNER_SCANNER_KEY).stacksTo(1)));
 
 	@Override
 	public void onInitialize() {

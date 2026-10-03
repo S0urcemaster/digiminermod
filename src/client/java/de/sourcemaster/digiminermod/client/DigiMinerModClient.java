@@ -1,10 +1,12 @@
 package de.sourcemaster.digiminermod.client;
 
+import de.sourcemaster.digiminermod.DigiMinerMod;
 import de.sourcemaster.digiminermod.client.config.DigiMinerConfig;
 import de.sourcemaster.digiminermod.client.input.ControllerAction;
 import de.sourcemaster.digiminermod.client.input.ControllerSupport;
 import de.sourcemaster.digiminermod.client.screen.RadialInventoryScreen;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
@@ -22,6 +24,9 @@ public final class DigiMinerModClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 		instance = this;
+		ScannerHud scannerHud = new ScannerHud();
+		HudElementRegistry.addLast(DigiMinerMod.id("spawner_scanner_hud"),
+				(graphics, deltaTracker) -> scannerHud.extract(graphics));
 	}
 
 	public static void updateControllerFrame(Minecraft client, DeltaTracker deltaTracker) {
