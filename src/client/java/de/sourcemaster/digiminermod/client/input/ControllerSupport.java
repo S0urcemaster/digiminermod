@@ -11,6 +11,14 @@ public final class ControllerSupport {
 	private ControllerSupport() {
 	}
 
+	public static float applyDeadzone(float value, float deadzone) {
+		float magnitude = Math.abs(value);
+		if (magnitude <= deadzone) {
+			return 0.0F;
+		}
+		return Math.copySign((magnitude - deadzone) / (1.0F - deadzone), value);
+	}
+
 	public static Snapshot poll() {
 		for (int joystick = GLFW.GLFW_JOYSTICK_1; joystick <= GLFW.GLFW_JOYSTICK_LAST; joystick++) {
 			if (GLFW.glfwJoystickIsGamepad(joystick)) {
