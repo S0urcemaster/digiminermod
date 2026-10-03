@@ -7,6 +7,8 @@ import de.sourcemaster.digiminermod.client.screen.RadialInventoryScreen;
 import net.fabricmc.api.ClientModInitializer;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
+import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 
 public final class DigiMinerModClient implements ClientModInitializer {
 	private static DigiMinerModClient instance;
@@ -63,15 +65,19 @@ public final class DigiMinerModClient implements ClientModInitializer {
 				this.lookVelocityHorizontal = 0.0;
 				this.lookVelocityVertical = 0.0;
 			}
-			ControllerAction menuAction = client.gui.screen() instanceof RadialInventoryScreen
+			boolean inventoryOpen = client.gui.screen() instanceof RadialInventoryScreen
+					|| client.gui.screen() instanceof CreativeModeInventoryScreen
+					|| client.gui.screen() instanceof InventoryScreen;
+			ControllerAction menuAction = inventoryOpen
 					? ControllerAction.INVENTORY_CLOSE : ControllerAction.OPEN_INVENTORY;
 			boolean menuPressed = controller.connected()
 					&& controller.pressed(DigiMinerConfig.get().binding(menuAction));
 			if (menuPressed && !this.previousMenuButton && client.player != null) {
-				if (client.gui.screen() instanceof RadialInventoryScreen) {
+				if (inventoryOpen) {
 					client.gui.setScreen(null);
 				} else if (client.gui.screen() == null) {
-					client.gui.setScreen(new RadialInventoryScreen());
+					client.gui.setScreen(client.player.hasInfiniteMaterials()
+							? new InventoryScreen(client.player) : new RadialInventoryScreen());
 				}
 			}
 			this.previousMenuButton = menuPressed;
