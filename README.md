@@ -3,6 +3,7 @@
 ## Idee
 
 Hallo ! Nach diesem Absatz beginnt KI. Ich schreibe hier ganz locker eine Mod für Minecraft, einfach indem ich natürlich beschreibe, was ich will. Ich schreibe keine einzige Zeile Code. Ich sage, was ich will und committe
+
 Sage, was ich will und committe
 
 ### Features
@@ -33,16 +34,14 @@ Ich will im Survival Mode große Bauwerke errichten mit gefarmten Rohstoffen. Da
 Ich habe auf Kadcon gewütet wie ein Irrer ! Meine Minecraft-Hochzeit. Da habe ich mir ein kleines Macro gebaut, das die Maustaste (damals noch) festhält und ich immer nur "Ein" und "Aus" schaltet, damit ich nicht immer runterhalten muss
 Dafür gibt es eine zweite Seite hinter der Hotbar wenn das Inventar geöffnet ist. (Die Hotbar verwenden, damit sie Fokus hat, dann LT/RT)
 
--- Mine lock
-Graben (meist RT) mit gedrückt halten oder per Ein-/Ausschalten
-
--- Maybe more
+- Mine lock :: Graben (meist RT) mit gedrückt halten oder per Ein-/Ausschalten
+- Maybe more
 
 #### Bergbau
 
 Ich hatte eine großartige Zeit mit Buildcraft, der Quarry und den riesengroßen Löchern, die sie in der Landschaft hinterlassen hat. Ich mag Bergbau ! Ich mag Massen von Items, große Zahlen und Automatisierung
 
-Das meiste davon ist in Minecraft möglich, aber man baut immer noch Block für Block ab. Da ist das Mining-Spiel Minecraft zu Ende. Deswegen will ich da mit so einfachen Mitteln wie möglich nachhelfen
+Das meiste davon ist in Vanilla Minecraft möglich, aber man baut immer noch Block für Block ab. Da ist das Mining-Spiel Minecraft zu Ende. Deswegen will ich da mit ein bisschen Technik nachhelfen
 
 
 
