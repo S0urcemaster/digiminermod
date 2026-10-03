@@ -1,5 +1,6 @@
 package de.sourcemaster.digiminermod.client.screen;
 
+import de.sourcemaster.digiminermod.client.config.DigiMinerConfig;
 import de.sourcemaster.digiminermod.client.input.ControllerSupport;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
@@ -198,30 +199,26 @@ public final class RadialInventoryScreen extends Screen {
 		int rightCenterX = this.width / 2 + spacing;
 		int radius = Math.min(68, Math.max(52, Math.min(spacing - 22, (this.height - 78) / 2)));
 
-		graphics.centeredText(this.font, this.title, this.width / 2, 9, 0xFFFFFFFF);
-		graphics.centeredText(this.font,
-				this.controller.connected()
-						? this.controller.name() + (this.controller.mapped() ? "" : " (Raw)")
-						: "Controller nicht erkannt",
-				this.width / 2, 21, this.controller.connected() ? 0xFFB8C4D6 : 0xFFFF8A80);
+		if (!this.controller.connected()) {
+			graphics.centeredText(this.font, "No controller detected", this.width / 2, 10, 0xFFFF8A80);
+		}
 
 		this.extractEquipmentRing(graphics, leftCenterX, centerY, radius);
 		this.extractInventoryRing(graphics, rightCenterX, centerY, radius);
+		this.extractHints(graphics);
 		this.extractHotbar(graphics);
 	}
 
 	private void extractEquipmentRing(GuiGraphicsExtractor graphics, int centerX, int centerY, int radius) {
-		this.extractRingTitle(graphics, "Ausstattung", centerX, centerY, this.activeRing == ActiveRing.EQUIPMENT);
-		double sector = Math.PI * 2.0 / EQUIPMENT_MENU_SLOTS.length;
 		for (int i = 0; i < EQUIPMENT_MENU_SLOTS.length; i++) {
 			this.extractRingSlot(graphics, this.menuStack(EQUIPMENT_MENU_SLOTS[i]), centerX, centerY, radius,
 					i, EQUIPMENT_MENU_SLOTS.length, i == this.equipmentCursor, 300 + i);
 		}
-		this.extractDetails(graphics, this.menuStack(this.equipmentMenuSlot()), centerX, centerY, "Seite 1/1");
+		this.extractDetails(graphics, this.menuStack(this.equipmentMenuSlot()), centerX, centerY,
+				"1/1", this.activeRing == ActiveRing.EQUIPMENT);
 	}
 
 	private void extractInventoryRing(GuiGraphicsExtractor graphics, int centerX, int centerY, int radius) {
-		this.extractRingTitle(graphics, "Inventar", centerX, centerY, this.activeRing == ActiveRing.INVENTORY);
 		int count = this.slotsOnCurrentPage();
 		for (int i = 0; i < count; i++) {
 			int menuSlot = InventoryMenu.INV_SLOT_START + this.currentPage * PAGE_SIZE + i;
@@ -229,13 +226,8 @@ public final class RadialInventoryScreen extends Screen {
 					i, count, i == this.inventoryCursor, menuSlot);
 		}
 		this.extractDetails(graphics, this.menuStack(this.inventoryMenuSlot()), centerX, centerY,
-				"Seite " + (this.currentPage + 1) + "/" + PAGE_COUNT);
-	}
-
-	private void extractRingTitle(
-			GuiGraphicsExtractor graphics, String title, int centerX, int centerY, boolean active) {
-		graphics.centeredText(this.font, title, centerX, centerY - 8,
-				active ? 0xFFF4D35E : 0xFFB8C4D6);
+				(this.currentPage + 1) + "/" + PAGE_COUNT,
+				this.activeRing == ActiveRing.INVENTORY);
 	}
 
 	private void extractRingSlot(
@@ -248,16 +240,39 @@ public final class RadialInventoryScreen extends Screen {
 	}
 
 	private void extractDetails(
-			GuiGraphicsExtractor graphics, ItemStack stack, int centerX, int centerY, String pageText) {
-		graphics.fill(centerX - 43, centerY + 4, centerX + 43, centerY + 31, 0xB010141A);
+			GuiGraphicsExtractor graphics, ItemStack stack, int centerX, int centerY,
+			String pageText, boolean active) {
+		graphics.fill(centerX - 43, centerY - 30, centerX + 43, centerY + 32, 0xB010141A);
+		graphics.outline(centerX - 43, centerY - 30, 86, 62, active ? 0x80F4D35E : 0x406E747C);
 		graphics.centeredText(this.font, pageText, centerX, centerY + 20, 0xFF9AA4B2);
 		if (stack.isEmpty()) {
 			return;
 		}
+
+		graphics.item(this.minecraft.player, stack, centerX - 8, centerY - 27, 500);
 		List<Component> tooltip = Screen.getTooltipFromItem(this.minecraft, stack);
-		if (!tooltip.isEmpty()) {
-			graphics.centeredText(this.font, tooltip.getFirst(), centerX, centerY + 7, 0xFFFFFFFF);
+		int lines = Math.min(2, tooltip.size());
+		for (int line = 0; line < lines; line++) {
+			graphics.centeredText(this.font, tooltip.get(line), centerX,
+					centerY - 7 + line * 10, 0xFFFFFFFF);
 		}
+	}
+
+	private void extractHints(GuiGraphicsExtractor graphics) {
+		if (!DigiMinerConfig.get().showIngameHints()) {
+			return;
+		}
+
+		int hotbarTop = this.height - SLOT_SIZE - 7;
+		String activePage = this.activeRing == ActiveRing.INVENTORY
+				? (this.currentPage + 1) + "/" + PAGE_COUNT
+				: "1/1";
+		graphics.centeredText(this.font,
+				"[RS] Inventory  |  [LS] Inventory  |  [LB/RB] Hotbar  |  [LT/RT] " + activePage,
+				this.width / 2, hotbarTop - 23, 0xFFDEE5EF);
+		graphics.centeredText(this.font,
+				"[D-pad Down] Inventory <-> Hotbar  |  [A] Inventory <-> Inventory  |  [View] Close",
+				this.width / 2, hotbarTop - 12, 0xFFB8C4D6);
 	}
 
 	private void extractHotbar(GuiGraphicsExtractor graphics) {
