@@ -15,7 +15,11 @@ import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.UUID;
 import net.fabricmc.fabric.api.menu.v1.ExtendedMenuProvider;
 import net.minecraft.network.chat.Component;
@@ -28,6 +32,7 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 	private Direction facing = Direction.NORTH;
 	private final SimpleContainer inventory = new SimpleContainer(27);
 	private boolean menuOpen;
+	private BlockPos previousPosition;
 
 	public DroneBlockEntity(BlockPos pos, BlockState state) { super(DigiMinerMod.DRONE_BLOCK_ENTITY, pos, state); }
 
@@ -36,18 +41,52 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 				|| level.getGameTime() % 4 != 0) return;
 		ServerPlayer owner = level.getServer().getPlayerList().getPlayer(drone.ownerId);
 		if (owner == null || owner.level() != level) return;
-		int dx = owner.blockPosition().getX() - pos.getX();
-		int dy = owner.blockPosition().getY() + 1 - pos.getY();
-		int dz = owner.blockPosition().getZ() - pos.getZ();
-		int ax = Math.abs(dx), ay = Math.abs(dy), az = Math.abs(dz);
-		if (Math.max(ax, Math.max(ay, az)) <= 3) return;
-		Direction direction;
-		if (ay >= ax && ay >= az) direction = dy > 0 ? Direction.UP : Direction.DOWN;
-		else if (ax >= az) direction = dx > 0 ? Direction.EAST : Direction.WEST;
-		else direction = dz > 0 ? Direction.SOUTH : Direction.NORTH;
-		BlockPos target = pos.relative(direction);
-		if (!level.getBlockState(target).canBeReplaced()) return;
-		drone.moveTo(level, target);
+		BlockPos destination = owner.blockPosition().above();
+		int tetherLength = chebyshevDistance(pos, destination);
+		if (tetherLength <= 3) return;
+		BlockPos next = drone.findNextPathStep(level, pos, destination, tetherLength);
+		if (next != null) drone.moveTo(level, next);
+	}
+
+	private BlockPos findNextPathStep(ServerLevel level, BlockPos start, BlockPos destination, int tetherLength) {
+		// Close to the player, direct movement dominates. A long tether lowers the heuristic
+		// weight and raises the search budget, making sideways/vertical detours increasingly likely.
+		double directionWeight = Math.max(0.65, 2.4 - Math.max(0, tetherLength - 3) * 0.12);
+		int maximumSteps = Math.min(48, 10 + tetherLength * 2);
+		int maximumVisited = Math.min(1200, 96 + tetherLength * 24);
+		PriorityQueue<PathNode> open = new PriorityQueue<>(Comparator.comparingDouble(PathNode::score));
+		Map<Long, Double> bestCosts = new HashMap<>();
+		open.add(new PathNode(start, 0.0, directionWeight * distanceOutsideTether(start, destination), null));
+		bestCosts.put(start.asLong(), 0.0);
+		int visited = 0;
+		while (!open.isEmpty() && visited++ < maximumVisited) {
+			PathNode node = open.poll();
+			if (distanceOutsideTether(node.pos(), destination) == 0 && node.firstStep() != null) return node.firstStep();
+			if (node.cost() >= maximumSteps) continue;
+			for (Direction direction : Direction.values()) {
+				BlockPos next = node.pos().relative(direction);
+				if (!level.hasChunkAt(next) || !level.getBlockState(next).canBeReplaced()) continue;
+				double backtrackPenalty = next.equals(this.previousPosition) ? Math.max(0.5, 3.0 - tetherLength * 0.12) : 0.0;
+				double cost = node.cost() + 1.0 + backtrackPenalty;
+				if (cost >= bestCosts.getOrDefault(next.asLong(), Double.POSITIVE_INFINITY)) continue;
+				bestCosts.put(next.asLong(), cost);
+				BlockPos first = node.firstStep() == null ? next : node.firstStep();
+				double score = cost + directionWeight * distanceOutsideTether(next, destination);
+				open.add(new PathNode(next, cost, score, first));
+			}
+		}
+		return null;
+	}
+
+	private static int chebyshevDistance(BlockPos first, BlockPos second) {
+		return Math.max(Math.abs(first.getX() - second.getX()),
+				Math.max(Math.abs(first.getY() - second.getY()), Math.abs(first.getZ() - second.getZ())));
+	}
+
+	private static int distanceOutsideTether(BlockPos pos, BlockPos destination) {
+		return Math.max(0, Math.abs(pos.getX() - destination.getX()) - 3)
+				+ Math.max(0, Math.abs(pos.getY() - destination.getY()) - 3)
+				+ Math.max(0, Math.abs(pos.getZ() - destination.getZ()) - 3);
 	}
 
 	private void moveTo(ServerLevel level, BlockPos target) {
@@ -59,6 +98,7 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		if (level.getBlockEntity(target) instanceof DroneBlockEntity moved) {
 			moved.restore(owner, oldMode, stacks);
 			moved.facing = this.facing;
+			moved.previousPosition = this.worldPosition;
 			moved.setChanged();
 			moved.rememberPosition();
 		}
@@ -127,4 +167,6 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		this.facing = Direction.from2DDataValue(input.getIntOr("Facing", Direction.NORTH.get2DDataValue()));
 		this.inventory.fromItemList(input.listOrEmpty("Inventory", ItemStack.CODEC));
 	}
+
+	private record PathNode(BlockPos pos, double cost, double score, BlockPos firstStep) {}
 }
