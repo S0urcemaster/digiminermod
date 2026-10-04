@@ -209,9 +209,7 @@ public final class RadialInventoryScreen extends Screen {
 	private void handleDpadTransfer(boolean pressed) {
 		long now = System.nanoTime();
 		if (pressed && !this.previousDpadDown) {
-			this.dpadFromInventory = this.activeRing == ActiveRing.HOTBAR
-					? this.menuStack(this.hotbarMenuSlot()).isEmpty()
-					: !this.menuStack(this.inventoryMenuSlot()).isEmpty();
+			this.dpadFromInventory = this.activeRing != ActiveRing.HOTBAR;
 			this.moveOne(this.inventoryMenuSlot(), this.hotbarMenuSlot(), this.dpadFromInventory);
 			this.nextDpadRepeat = now + INITIAL_REPEAT_DELAY;
 		} else if (pressed && now >= this.nextDpadRepeat) {
@@ -223,14 +221,12 @@ public final class RadialInventoryScreen extends Screen {
 	private void handleATransfer(boolean pressed) {
 		long now = System.nanoTime();
 		if (pressed && !this.previousA) {
-			if (this.activeRing == ActiveRing.HOTBAR || this.leftPage == LeftPage.RECIPES) return;
-			this.aFromEquipment = this.activeRing == ActiveRing.LEFT
-					? !this.menuStack(this.leftMenuSlot()).isEmpty()
-					: this.menuStack(this.inventoryMenuSlot()).isEmpty();
+			if (this.leftPage == LeftPage.RECIPES) return;
+			this.aFromEquipment = this.activeRing == ActiveRing.LEFT;
 			this.moveOne(this.leftMenuSlot(), this.inventoryMenuSlot(), this.aFromEquipment);
 			this.nextARepeat = now + INITIAL_REPEAT_DELAY;
 		} else if (pressed && now >= this.nextARepeat) {
-			if (this.activeRing != ActiveRing.HOTBAR && this.leftPage != LeftPage.RECIPES) {
+			if (this.leftPage != LeftPage.RECIPES) {
 				this.moveOne(this.leftMenuSlot(), this.inventoryMenuSlot(), this.aFromEquipment);
 			}
 			this.nextARepeat = now + REPEAT_INTERVAL;

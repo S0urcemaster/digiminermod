@@ -226,20 +226,18 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 			}
 			return;
 		}
-		if (this.leftPage == 3 && this.focus != Focus.HOTBAR) {
+		if (this.leftPage == 3) {
 			if (this.mode != 1) return;
 			int inventory = this.inventorySlot();
 			int equipmentSlot = this.optionCursor == 1 ? DroneMenu.PROGRAM_DRIVE_SLOT
 					: this.optionCursor == 2 ? DroneMenu.EXCAVATE_CARTRIDGE_SLOT : DroneMenu.SCANNER_CARTRIDGE_SLOT;
-			boolean fromTool = this.focus == Focus.DRONE
-					? !this.menu.getSlot(equipmentSlot).getItem().isEmpty()
-					: this.menu.getSlot(inventory).getItem().isEmpty();
+			boolean fromTool = this.focus == Focus.DRONE;
 			this.moveOne(equipmentSlot, inventory, fromTool);
 			return;
 		}
-		if (this.focus == Focus.HOTBAR) return;
+		if (this.leftPage >= 2) return;
 		int drone = this.droneSlot(), inventory = this.inventorySlot();
-		boolean fromDrone = this.focus == Focus.DRONE ? !this.menu.getSlot(drone).getItem().isEmpty() : this.menu.getSlot(inventory).getItem().isEmpty();
+		boolean fromDrone = this.focus == Focus.DRONE;
 		this.moveOne(drone, inventory, fromDrone);
 	}
 
@@ -269,9 +267,9 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 	}
 
 	private void transferHotbar() {
-		int other = this.focus == Focus.DRONE && this.leftPage < 2 ? this.droneSlot() : this.inventorySlot();
+		int other = this.inventorySlot();
 		int hotbar = DroneMenu.HOTBAR_START + this.hotbarCursor;
-		boolean fromOther = this.focus == Focus.HOTBAR ? this.menu.getSlot(hotbar).getItem().isEmpty() : !this.menu.getSlot(other).getItem().isEmpty();
+		boolean fromOther = this.focus != Focus.HOTBAR;
 		this.moveOne(other, hotbar, fromOther);
 	}
 

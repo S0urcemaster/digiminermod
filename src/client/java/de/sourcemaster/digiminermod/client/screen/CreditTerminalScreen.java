@@ -47,7 +47,7 @@ public final class CreditTerminalScreen extends Screen implements MenuAccess<Cre
 		boolean a = pad.pressed(config.binding(ControllerAction.INVENTORY_TRANSFER_SECONDARY));
 		if (this.focus == Focus.HOTBAR && this.hotbarPage == 1) {
 			if (a && !this.previousA) config.setStartStopMining(!config.startStopMining());
-		} else if (this.focus != Focus.HOTBAR) this.handleATransfer(a);
+		} else this.handleATransfer(a);
 		boolean dpad = pad.pressed(config.binding(ControllerAction.INVENTORY_TRANSFER_HOTBAR));
 		if (this.hotbarPage == 0) this.handleDpadTransfer(dpad);
 		this.previousA = a; this.previousDpad = dpad; this.previousLB = lb; this.previousRB = rb;
@@ -70,9 +70,7 @@ public final class CreditTerminalScreen extends Screen implements MenuAccess<Cre
 	private void handleATransfer(boolean pressed) {
 		long now = System.nanoTime();
 		if (pressed && !this.previousA) {
-			this.aFromTerminal = this.focus == Focus.TERMINAL
-					? !this.menu.getSlot(this.terminalCursor).getItem().isEmpty()
-					: this.menu.getSlot(this.inventorySlot()).getItem().isEmpty();
+			this.aFromTerminal = this.focus == Focus.TERMINAL;
 			this.moveOne(this.terminalCursor, this.inventorySlot(), this.aFromTerminal);
 			this.nextARepeat = now + INITIAL_REPEAT_DELAY;
 		} else if (pressed && now >= this.nextARepeat) {
@@ -83,11 +81,10 @@ public final class CreditTerminalScreen extends Screen implements MenuAccess<Cre
 
 	private void handleDpadTransfer(boolean pressed) {
 		long now = System.nanoTime();
-		int other = this.focus == Focus.TERMINAL ? this.terminalCursor : this.inventorySlot();
+		int other = this.inventorySlot();
 		int hotbar = CreditTerminalMenu.HOTBAR_START + this.hotbarCursor;
 		if (pressed && !this.previousDpad) {
-			this.dpadFromOther = this.focus == Focus.HOTBAR ? this.menu.getSlot(hotbar).getItem().isEmpty()
-					: !this.menu.getSlot(other).getItem().isEmpty();
+			this.dpadFromOther = this.focus != Focus.HOTBAR;
 			this.moveOne(other, hotbar, this.dpadFromOther);
 			this.nextDpadRepeat = now + INITIAL_REPEAT_DELAY;
 		} else if (pressed && now >= this.nextDpadRepeat) {

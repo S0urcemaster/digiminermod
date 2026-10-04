@@ -100,21 +100,17 @@ public final class RadialCraftingScreen extends Screen {
 			config.setStartStopMining(!config.startStopMining());
 		} else if (a && !this.previousA && this.focus == Focus.CRAFTING && this.leftPage == LeftPage.RECIPES) {
 			this.placeSelectedRecipe();
-		} else if (a && !this.previousA && this.focus != Focus.HOTBAR && this.leftPage != LeftPage.RECIPES) {
+		} else if (a && !this.previousA && this.leftPage != LeftPage.RECIPES) {
 			int crafting = 1 + this.craftCursor;
 			int inventory = this.inventorySlot();
-			boolean fromCrafting = this.focus == Focus.CRAFTING
-					? !this.menu.getSlot(crafting).getItem().isEmpty()
-					: this.menu.getSlot(inventory).getItem().isEmpty();
+			boolean fromCrafting = this.focus == Focus.CRAFTING;
 			this.moveOne(crafting, inventory, fromCrafting);
 		}
 		this.handleCraftResult(y);
 		if (dpad && !this.previousDpad && (this.focus != Focus.HOTBAR || this.hotbarPage == 0)) {
 			int inventory = this.inventorySlot();
 			int hotbar = 37 + this.hotbarCursor;
-			boolean fromInventory = this.focus == Focus.HOTBAR
-					? this.menu.getSlot(hotbar).getItem().isEmpty()
-					: !this.menu.getSlot(inventory).getItem().isEmpty();
+			boolean fromInventory = this.focus != Focus.HOTBAR;
 			this.moveOne(inventory, hotbar, fromInventory);
 		}
 		this.previousA = a;
