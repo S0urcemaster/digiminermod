@@ -121,7 +121,10 @@ public final class DigiMinerMod implements ModInitializer {
 			removeLegacyDroneCores(player);
 			server.execute(() -> ensureDrone(player));
 			server.execute(() -> ensureCreditTerminal(player));
-			server.execute(() -> CreditAccount.sync(player));
+			server.execute(() -> {
+				CreditAccount.migrateDevelopmentAccounts(player);
+				CreditAccount.sync(player);
+			});
 			unlockAllRecipesSilently(player, server);
 			// Vanilla sends the unlocked recipe book while the player joins. Queue our complete
 			// display catalogue afterwards so that the vanilla packet cannot replace it again.

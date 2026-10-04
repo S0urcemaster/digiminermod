@@ -14,6 +14,13 @@ repositories {
 loom {
 	splitEnvironmentSourceSets()
 
+	runs {
+		client {
+			programArg "--username"
+			programArg "DigiMinerDev"
+		}
+	}
+
 	mods {
 		"digiminermod" {
 			sourceSet sourceSets.main

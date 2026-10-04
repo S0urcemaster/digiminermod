@@ -9,6 +9,7 @@ import net.minecraft.world.scores.Objective;
 import net.minecraft.world.scores.ScoreHolder;
 import net.minecraft.world.scores.criteria.ObjectiveCriteria;
 import java.util.UUID;
+import net.fabricmc.loader.api.FabricLoader;
 
 public final class CreditAccount {
 	private static final String OBJECTIVE = "digiminer_credits";
@@ -41,5 +42,25 @@ public final class CreditAccount {
 
 	public static void sync(ServerPlayer player) {
 		ServerPlayNetworking.send(player, new DroneNetworking.CreditPayload(balance(player)));
+	}
+
+	/** Recovers scores written for Loom's former random Player### identities. */
+	public static void migrateDevelopmentAccounts(ServerPlayer player) {
+		if (!FabricLoader.getInstance().isDevelopmentEnvironment()) return;
+		var scoreboard = player.level().getServer().getScoreboard();
+		Objective objective = objective(player.level().getServer());
+		String currentOwner = player.getUUID().toString();
+		int recovered = 0;
+		for (var entry : java.util.List.copyOf(scoreboard.listPlayerScores(objective))) {
+			if (entry.owner().equals(currentOwner) || entry.value() <= 0) continue;
+			try {
+				UUID.fromString(entry.owner());
+			} catch (IllegalArgumentException ignored) {
+				continue;
+			}
+			recovered += entry.value();
+			scoreboard.resetSinglePlayerScore(ScoreHolder.forNameOnly(entry.owner()), objective);
+		}
+		if (recovered > 0) scoreboard.getOrCreatePlayerScore(ScoreHolder.forNameOnly(currentOwner), objective).add(recovered);
 	}
 }
