@@ -3,8 +3,8 @@ package de.sourcemaster.digiminermod.drone;
 public enum DroneMode {
 	FOLLOW,
 	STATIC,
-	AUTOMATIC,
-	UPGRADE;
+	BUILD,
+	EXCAVATE;
 
 	public static DroneMode byId(int id) {
 		return values()[Math.floorMod(id, values().length)];
