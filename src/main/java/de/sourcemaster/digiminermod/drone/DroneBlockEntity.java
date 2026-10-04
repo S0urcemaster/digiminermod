@@ -42,6 +42,12 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 	private BlockPos previousPosition;
 	private int activeProgram = -1;
 	private int programRemaining;
+	private int excavationFuelUnits;
+	private int shaftClearIndex;
+	private boolean shaftMoveDownPending;
+	private BlockPos programBreakPos;
+	private int programBreakTicks;
+	private int programBreakTicksRequired;
 	private String droneName = "Digi";
 
 	public DroneBlockEntity(BlockPos pos, BlockState state) {
@@ -52,7 +58,7 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 	}
 
 	public static void serverTick(net.minecraft.world.level.Level ignored, BlockPos pos, BlockState state, DroneBlockEntity drone) {
-		if (!(drone.level instanceof ServerLevel level) || drone.ownerId == null || level.getGameTime() % 4 != 0) return;
+		if (!(drone.level instanceof ServerLevel level) || drone.ownerId == null) return;
 		ServerPlayer owner = level.getServer().getPlayerList().getPlayer(drone.ownerId);
 		if (owner != null && owner.level() == level && level.getGameTime() % 20 == 0) {
 			boolean scannerActive = drone.equipmentInventory.getItem(0).is(DigiMinerMod.BASIC_SCANNER_CARTRIDGE);
@@ -69,11 +75,12 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 						new DroneNetworking.ScannerPayload(pos.asLong(), ironNearby));
 			}
 		}
-		if (state.getValue(DroneBlock.LIT)) level.setBlock(pos, state.setValue(DroneBlock.LIT, false), 3);
+		if (!state.getValue(DroneBlock.LIT)) level.setBlock(pos, state.setValue(DroneBlock.LIT, true), 3);
 		if (drone.activeProgram >= 0) {
-			drone.runProgramStep(level);
+			if (drone.mode == DroneMode.EXCAVATE || level.getGameTime() % 4 == 0) drone.runProgramStep(level);
 			return;
 		}
+		if (level.getGameTime() % 4 != 0) return;
 		if (drone.menuOpen || drone.mode != DroneMode.FOLLOW) return;
 		if (owner == null || owner.level() != level) return;
 		BlockPos destination = owner.blockPosition().above();
@@ -84,9 +91,17 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 	}
 
 	public boolean startProgram(int program, int parameterOne, int parameterTwo) {
-		if (this.mode != DroneMode.BUILD || program != 0
-				|| !this.equipmentInventory.getItem(1).is(DigiMinerMod.BASIC_BUILD_CARTRIDGE)) return false;
-		if (!(this.inventory.getItem(0).getItem() instanceof BlockItem) || parameterOne <= 0) return false;
+		if (parameterOne <= 0) return false;
+		if (this.mode == DroneMode.BUILD) {
+			if (program != 0 || !this.equipmentInventory.getItem(1).is(DigiMinerMod.BASIC_BUILD_CARTRIDGE)
+					|| !(this.inventory.getItem(0).getItem() instanceof BlockItem)) return false;
+		} else if (this.mode == DroneMode.EXCAVATE) {
+			if (program != 1 || !this.equipmentInventory.getItem(2).is(DigiMinerMod.BASIC_EXCAVATE_CARTRIDGE)
+					|| !this.hasIronFuel()) return false;
+			this.shaftClearIndex = 0;
+			this.shaftMoveDownPending = false;
+			this.clearBreakProgress();
+		} else return false;
 		this.activeProgram = program;
 		this.programRemaining = Math.max(0, Math.min(999, parameterOne));
 		this.setChanged();
@@ -94,10 +109,16 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 	}
 
 	private void runProgramStep(ServerLevel level) {
-		if (this.mode != DroneMode.BUILD || this.activeProgram != 0 || this.programRemaining <= 0) {
-			this.activeProgram = -1;
-			this.programRemaining = 0;
-			this.setChanged();
+		if (this.programRemaining <= 0) {
+			this.stopProgram(level);
+			return;
+		}
+		if (this.mode == DroneMode.EXCAVATE && this.activeProgram == 1) {
+			this.runShaftStep(level);
+			return;
+		}
+		if (this.mode != DroneMode.BUILD || this.activeProgram != 0) {
+			this.stopProgram(level);
 			return;
 		}
 		ItemStack material = this.inventory.getItem(0);
@@ -119,6 +140,103 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		this.programRemaining--;
 		if (this.programRemaining <= 0) this.activeProgram = -1;
 		this.moveTo(level, nextDronePos);
+	}
+
+	private void runShaftStep(ServerLevel level) {
+		if (this.shaftMoveDownPending) {
+			BlockPos down = this.worldPosition.below();
+			if (!level.getBlockState(down).canBeReplaced()) { this.stopProgram(level); return; }
+			this.shaftMoveDownPending = false;
+			this.shaftClearIndex = 0;
+			this.programRemaining--;
+			if (this.programRemaining <= 0) this.activeProgram = -1;
+			this.moveTo(level, down);
+			return;
+		}
+
+		BlockPos base = this.worldPosition.relative(this.facing).below();
+		while (this.shaftClearIndex < 5) {
+			BlockPos target = base.above(this.shaftClearIndex);
+			BlockState targetState = level.getBlockState(target);
+			if (targetState.isAir() || targetState.canBeReplaced()) {
+				this.shaftClearIndex++;
+				continue;
+			}
+			if (!this.mineBlock(level, target, targetState)) this.stopProgram(level);
+			return;
+		}
+
+		this.clearBreakProgress();
+		this.shaftMoveDownPending = true;
+		this.moveTo(level, this.worldPosition.relative(this.facing));
+	}
+
+	/** One ingot supplies 250 scaled units; a normal mined block costs 3. */
+	private boolean mineBlock(ServerLevel level, BlockPos target, BlockState state) {
+		ItemStack ironPickaxe = new ItemStack(net.minecraft.world.item.Items.IRON_PICKAXE);
+		float hardness = state.getDestroySpeed(level, target);
+		if (hardness < 0.0F || state.requiresCorrectToolForDrops() && !ironPickaxe.isCorrectToolForDrops(state)) return false;
+		if (hardness > 0.0F && !this.ensureExcavationFuel(3)) return false;
+
+		if (!target.equals(this.programBreakPos)) {
+			this.clearBreakProgress();
+			this.programBreakPos = target.immutable();
+			float speed = Math.max(0.0001F, ironPickaxe.getDestroySpeed(state));
+			this.programBreakTicksRequired = Math.max(1, (int)Math.ceil(hardness * 30.0F / speed));
+		}
+		this.programBreakTicks++;
+		level.destroyBlockProgress(this.worldPosition.hashCode(), target,
+				Math.min(9, this.programBreakTicks * 10 / this.programBreakTicksRequired));
+		if (this.programBreakTicks < this.programBreakTicksRequired) return true;
+
+		ServerPlayer owner = level.getServer().getPlayerList().getPlayer(this.ownerId);
+		level.destroyBlockProgress(this.worldPosition.hashCode(), target, -1);
+		if (!level.destroyBlock(target, true, owner, 512)) return false;
+		if (hardness > 0.0F) this.excavationFuelUnits -= 3;
+		this.shaftClearIndex++;
+		this.clearBreakProgress();
+		this.setChanged();
+		return true;
+	}
+
+	private boolean hasIronFuel() {
+		if (this.excavationFuelUnits >= 3) return true;
+		for (int i = 0; i < this.inventory.getContainerSize(); i++) {
+			if (this.inventory.getItem(i).is(net.minecraft.world.item.Items.IRON_INGOT)) return true;
+		}
+		return false;
+	}
+
+	private boolean ensureExcavationFuel(int required) {
+		while (this.excavationFuelUnits < required) {
+			int fuelSlot = -1;
+			for (int i = 0; i < this.inventory.getContainerSize(); i++) {
+				if (this.inventory.getItem(i).is(net.minecraft.world.item.Items.IRON_INGOT)) { fuelSlot = i; break; }
+			}
+			if (fuelSlot < 0) return false;
+			this.inventory.getItem(fuelSlot).shrink(1);
+			this.excavationFuelUnits += 250;
+			this.inventory.setChanged();
+		}
+		return true;
+	}
+
+	private void stopProgram(ServerLevel level) {
+		this.clearBreakProgress();
+		this.activeProgram = -1;
+		this.programRemaining = 0;
+		this.shaftMoveDownPending = false;
+		this.shaftClearIndex = 0;
+		this.setChanged();
+	}
+
+	private void clearBreakProgress() {
+		if (this.level instanceof ServerLevel serverLevel && this.programBreakPos != null) {
+			serverLevel.destroyBlockProgress(this.worldPosition.hashCode(), this.programBreakPos, -1);
+		}
+		this.programBreakPos = null;
+		this.programBreakTicks = 0;
+		this.programBreakTicksRequired = 0;
 	}
 
 	private BlockPos findNextPathStep(ServerLevel level, BlockPos start, BlockPos destination, int tetherLength) {
@@ -181,13 +299,19 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		level.setBlock(this.worldPosition, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
 		BlockState movedState = DigiMinerMod.DRONE_BLOCK.defaultBlockState()
 				.setValue(DroneBlock.FACING, this.facing)
-				.setValue(DroneBlock.LIT, false);
+				.setValue(DroneBlock.LIT, true);
 		level.setBlock(target, movedState, 3);
 		if (level.getBlockEntity(target) instanceof DroneBlockEntity moved) {
 			moved.restore(owner, oldMode, stacks, scannerCartridge, programDrive, excavateCartridge);
 			moved.facing = this.facing;
 			moved.activeProgram = this.activeProgram;
 			moved.programRemaining = this.programRemaining;
+			moved.excavationFuelUnits = this.excavationFuelUnits;
+			moved.shaftClearIndex = this.shaftClearIndex;
+			moved.shaftMoveDownPending = this.shaftMoveDownPending;
+			moved.programBreakPos = this.programBreakPos;
+			moved.programBreakTicks = this.programBreakTicks;
+			moved.programBreakTicksRequired = this.programBreakTicksRequired;
 			moved.setDroneName(this.droneName);
 			moved.previousPosition = this.worldPosition;
 			moved.setChanged();
@@ -196,7 +320,8 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 	}
 
 	public void pushFromHit(Direction hitFace) {
-		if (!(this.level instanceof ServerLevel serverLevel) || this.mode != DroneMode.STATIC) return;
+		if (!(this.level instanceof ServerLevel serverLevel)
+				|| this.mode != DroneMode.STATIC && this.mode != DroneMode.FOLLOW) return;
 		Direction movement = hitFace.getOpposite();
 		if (movement.getAxis().isHorizontal()) this.facing = movement;
 		BlockPos target = this.worldPosition.relative(movement);
@@ -250,7 +375,7 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		if (this.level == null) return;
 		BlockState state = this.getBlockState();
 		if (!state.hasProperty(DroneBlock.LIT)) return;
-		boolean lit = false;
+		boolean lit = true;
 		if (state.getValue(DroneBlock.LIT) != lit) this.level.setBlock(this.worldPosition, state.setValue(DroneBlock.LIT, lit), 3);
 	}
 	public void setMenuOpen(boolean menuOpen) { this.menuOpen = menuOpen; }
@@ -267,6 +392,12 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		output.putInt("Facing", this.facing.get2DDataValue());
 		output.putInt("ActiveProgram", this.activeProgram);
 		output.putInt("ProgramRemaining", this.programRemaining);
+		output.putInt("ExcavationFuelUnits", this.excavationFuelUnits);
+		output.putInt("ShaftClearIndex", this.shaftClearIndex);
+		output.putBoolean("ShaftMoveDownPending", this.shaftMoveDownPending);
+		if (this.programBreakPos != null) output.putLong("ProgramBreakPos", this.programBreakPos.asLong());
+		output.putInt("ProgramBreakTicks", this.programBreakTicks);
+		output.putInt("ProgramBreakTicksRequired", this.programBreakTicksRequired);
 		output.putString("DroneName", this.droneName);
 		this.inventory.storeAsItemList(output.list("Inventory", ItemStack.CODEC));
 		if (!this.equipmentInventory.getItem(0).isEmpty()) output.store("ScannerCartridge", ItemStack.CODEC, this.equipmentInventory.getItem(0));
@@ -281,6 +412,12 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		this.facing = Direction.from2DDataValue(input.getIntOr("Facing", Direction.NORTH.get2DDataValue()));
 		this.activeProgram = input.getIntOr("ActiveProgram", -1);
 		this.programRemaining = input.getIntOr("ProgramRemaining", 0);
+		this.excavationFuelUnits = input.getIntOr("ExcavationFuelUnits", 0);
+		this.shaftClearIndex = input.getIntOr("ShaftClearIndex", 0);
+		this.shaftMoveDownPending = input.getBooleanOr("ShaftMoveDownPending", false);
+		this.programBreakPos = input.getLong("ProgramBreakPos").map(BlockPos::of).orElse(null);
+		this.programBreakTicks = input.getIntOr("ProgramBreakTicks", 0);
+		this.programBreakTicksRequired = input.getIntOr("ProgramBreakTicksRequired", 0);
 		this.droneName = input.getStringOr("DroneName", "Digi");
 		this.inventory.fromItemList(input.listOrEmpty("Inventory", ItemStack.CODEC));
 		this.equipmentInventory.setItem(0, input.read("ScannerCartridge", ItemStack.CODEC)

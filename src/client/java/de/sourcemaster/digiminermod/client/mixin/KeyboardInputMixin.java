@@ -9,30 +9,42 @@ import net.minecraft.client.player.KeyboardInput;
 import net.minecraft.world.entity.player.Input;
 import net.minecraft.world.phys.Vec2;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(KeyboardInput.class)
 public abstract class KeyboardInputMixin extends ClientInput {
+	@Unique private boolean digiminermod$controllerSneaking;
+	@Unique private boolean digiminermod$previousSneakButton;
 
 	@Inject(method = "tick", at = @At("TAIL"))
 	private void digiminermod$addControllerMovement(CallbackInfo callbackInfo) {
+		ControllerSupport.Snapshot controller = ControllerSupport.poll();
+		DigiMinerConfig config = DigiMinerConfig.get();
+		boolean sneakButton = controller.connected()
+				&& controller.pressed(config.binding(ControllerAction.WORLD_SNEAK));
 		// A visible screen owns controller input. Keeping this generic makes the
 		// lock apply to every current and future container screen automatically.
 		if (Minecraft.getInstance().gui.screen() != null) {
+			this.digiminermod$previousSneakButton = sneakButton;
 			this.moveVector = Vec2.ZERO;
 			this.keyPresses = new Input(false, false, false, false, false, false, false);
 			return;
 		}
-		ControllerSupport.Snapshot controller = ControllerSupport.poll();
 		if (!controller.connected()) {
+			this.digiminermod$controllerSneaking = false;
+			this.digiminermod$previousSneakButton = false;
 			return;
 		}
 
-		DigiMinerConfig config = DigiMinerConfig.get();
+		if (sneakButton && !this.digiminermod$previousSneakButton) {
+			this.digiminermod$controllerSneaking = !this.digiminermod$controllerSneaking;
+		}
+		this.digiminermod$previousSneakButton = sneakButton;
 		boolean jump = this.keyPresses.jump() || controller.pressed(config.binding(ControllerAction.WORLD_JUMP));
-		boolean sneak = this.keyPresses.shift() || controller.pressed(config.binding(ControllerAction.WORLD_SNEAK));
+		boolean sneak = this.keyPresses.shift() || this.digiminermod$controllerSneaking;
 		boolean sprint = this.keyPresses.sprint() || controller.pressed(config.binding(ControllerAction.WORLD_SPRINT));
 		float deadzone = (float) config.moveDeadzone();
 		float sideways = -ControllerSupport.applyDeadzone(controller.leftX(), deadzone);

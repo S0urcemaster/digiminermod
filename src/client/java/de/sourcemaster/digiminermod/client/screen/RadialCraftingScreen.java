@@ -51,6 +51,8 @@ public final class RadialCraftingScreen extends Screen {
 	private boolean previousLT;
 	private boolean previousRT;
 	private long nextYRepeat;
+	private long nextDpadRepeat;
+	private boolean dpadFromInventory;
 	private ControllerSupport.Snapshot controller = ControllerSupport.Snapshot.NONE;
 
 	public RadialCraftingScreen(CraftingMenu menu) {
@@ -109,16 +111,7 @@ public final class RadialCraftingScreen extends Screen {
 			this.moveOne(crafting, inventory, fromCrafting);
 		}
 		this.handleCraftResult(y);
-		if (dpad && !this.previousDpad && (this.focus != Focus.HOTBAR || this.hotbarPage == 0)) {
-			int inventory = this.inventorySlot();
-			int hotbar = 37 + this.hotbarCursor;
-			boolean fromInventory = this.focus == Focus.HOTBAR
-					? this.menu.getSlot(hotbar).getItem().isEmpty()
-					: this.focus == Focus.INVENTORY
-							? !this.menu.getSlot(inventory).getItem().isEmpty()
-							: true;
-			this.moveOne(inventory, hotbar, fromInventory);
-		}
+		if (this.focus != Focus.HOTBAR || this.hotbarPage == 0) this.handleDpadTransfer(dpad);
 		this.previousA = a;
 		this.previousY = y;
 		this.previousDpad = dpad;
@@ -127,6 +120,24 @@ public final class RadialCraftingScreen extends Screen {
 		this.previousLT = lt;
 		this.previousRT = rt;
 		this.refreshRecipeSuggestions();
+	}
+
+	private void handleDpadTransfer(boolean pressed) {
+		long now = System.nanoTime();
+		int inventory = this.inventorySlot();
+		int hotbar = 37 + this.hotbarCursor;
+		if (pressed && !this.previousDpad) {
+			this.dpadFromInventory = this.focus == Focus.HOTBAR
+					? this.menu.getSlot(hotbar).getItem().isEmpty()
+					: this.focus == Focus.INVENTORY
+							? !this.menu.getSlot(inventory).getItem().isEmpty()
+							: true;
+			this.moveOne(inventory, hotbar, this.dpadFromInventory);
+			this.nextDpadRepeat = now + INITIAL_REPEAT_DELAY;
+		} else if (pressed && now >= this.nextDpadRepeat) {
+			this.moveOne(inventory, hotbar, this.dpadFromInventory);
+			this.nextDpadRepeat = now + REPEAT_INTERVAL;
+		}
 	}
 
 	private void updateCraftCursor(float x, float y) {

@@ -19,6 +19,7 @@ import net.minecraft.client.gui.screens.inventory.MenuAccess;
 
 public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 	private static final int PAGE_SIZE = 14, SLOT_SIZE = 20;
+	private static final long INITIAL_REPEAT_DELAY = 350_000_000L, REPEAT_INTERVAL = 90_000_000L;
 	private static final String[] MODES = {"Follow", "Static", "Build", "Excavate"};
 	private static final String[] BUILD_PROGRAMS = {"Bridge", "Wall", "Floor"};
 	private static final String[] EXCAVATE_PROGRAMS = {"3x3 Tunnel", "Shaft", "Room"};
@@ -29,6 +30,8 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 	private Focus focus = Focus.DRONE;
 	private int leftPage, mode, droneCursor, inventoryPage, inventoryCursor, hotbarCursor, hotbarPage, optionCursor;
 	private boolean previousA, previousDpad, previousLB, previousRB, previousLT, previousRT;
+	private boolean dpadFromInventory;
+	private long nextDpadRepeat;
 	private EditBox parameterOne, parameterTwo, droneName;
 	private final String[][][] parameterValues = {
 			{{"10", ""}, {"10", "3"}, {"10", "3"}},
@@ -113,7 +116,7 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 		boolean a = pad.pressed(config.binding(ControllerAction.INVENTORY_TRANSFER_SECONDARY));
 		if (a && !this.previousA) this.activate(config);
 		boolean dpad = pad.pressed(config.binding(ControllerAction.INVENTORY_TRANSFER_HOTBAR));
-		if (dpad && !this.previousDpad && this.hotbarPage == 0) this.transferHotbar();
+		if (this.hotbarPage == 0) this.handleHotbarTransfer(dpad);
 		this.previousA = a; this.previousDpad = dpad; this.previousLB = lb; this.previousRB = rb; this.previousLT = lt; this.previousRT = rt;
 	}
 
@@ -270,15 +273,22 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 		catch (NumberFormatException ignored) { return 0; }
 	}
 
-	private void transferHotbar() {
+	private void handleHotbarTransfer(boolean pressed) {
+		long now = System.nanoTime();
 		int other = this.inventorySlot();
 		int hotbar = DroneMenu.HOTBAR_START + this.hotbarCursor;
-		boolean fromOther = this.focus == Focus.HOTBAR
-				? this.menu.getSlot(hotbar).getItem().isEmpty()
-				: this.focus == Focus.INVENTORY
-						? !this.menu.getSlot(other).getItem().isEmpty()
-						: true;
-		this.moveOne(other, hotbar, fromOther);
+		if (pressed && !this.previousDpad) {
+			this.dpadFromInventory = this.focus == Focus.HOTBAR
+					? this.menu.getSlot(hotbar).getItem().isEmpty()
+					: this.focus == Focus.INVENTORY
+							? !this.menu.getSlot(other).getItem().isEmpty()
+							: true;
+			this.moveOne(other, hotbar, this.dpadFromInventory);
+			this.nextDpadRepeat = now + INITIAL_REPEAT_DELAY;
+		} else if (pressed && now >= this.nextDpadRepeat) {
+			this.moveOne(other, hotbar, this.dpadFromInventory);
+			this.nextDpadRepeat = now + REPEAT_INTERVAL;
+		}
 	}
 
 	private void moveOne(int first, int second, boolean fromFirst) {
