@@ -129,25 +129,30 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 			int count = MODES.length;
 			this.optionCursor = Math.max(0, Math.min(count - 1, Math.round((y + 1) * 0.5F * (count - 1))));
 		}
-		else if (Math.abs(x) >= 0.45F || Math.abs(y) >= 0.45F) {
+		else if ((this.mode == 2 || this.mode == 3) && this.hasCartridge(this.mode) && x * x + y * y >= 0.25F) {
 			this.focus = Focus.DRONE;
-			int count = this.mode == 1 ? 3 : this.mode == 2 || this.mode == 3 ? 3 : 1;
-			if (Math.abs(y) >= 0.45F) {
-				int next = Math.max(0, Math.min(count - 1, Math.round((y + 1) * 0.5F * (count - 1))));
-				if (next != this.optionCursor && (this.mode == 2 || this.mode == 3)) {
-					this.saveParameterValues();
-					this.optionCursor = next;
-					this.parameterMode = this.mode;
-					this.parameterProgram = next;
-					this.loadParameterValues();
-				} else this.optionCursor = next;
+			int next = axisSegment(y, 3);
+			if (next != this.optionCursor) {
+				this.saveParameterValues();
+				this.optionCursor = next;
+				this.parameterMode = this.mode;
+				this.parameterProgram = next;
+				this.loadParameterValues();
 			}
-			if ((this.mode == 2 || this.mode == 3) && this.hasCartridge(this.mode) && Math.abs(x) >= 0.45F) {
-				boolean hasSecond = !this.parameterDefinitions()[this.optionCursor][1].isEmpty();
-				this.parameterCursor = x > 0 && hasSecond ? 1 : 0;
-				this.focusParameterField();
-			}
+			int fieldCount = this.parameterDefinitions()[this.optionCursor][1].isEmpty() ? 1 : 2;
+			this.parameterCursor = axisSegment(x, fieldCount);
+			this.focusParameterField();
 		}
+		else if (this.mode == 1 && Math.abs(y) >= 0.25F) {
+			this.focus = Focus.DRONE;
+			this.optionCursor = axisSegment(y, 3);
+		}
+	}
+
+	private static int axisSegment(float value, int count) {
+		if (count <= 1) return 0;
+		float normalized = Math.max(0.0F, Math.min(0.999999F, (value + 1.0F) * 0.5F));
+		return Math.min(count - 1, (int)(normalized * count));
 	}
 
 	private boolean updateParameterWithRightStick(float x, float y) {
@@ -211,17 +216,21 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 		if (this.focus == Focus.DRONE && this.leftPage == 2) {
 			this.mode = this.optionCursor; ClientPlayNetworking.send(new DroneNetworking.CommandPayload(this.menu.dronePos().asLong(), this.mode)); return;
 		}
-		if (this.leftPage == 3 && this.focus != Focus.HOTBAR) {
-			if ((this.mode == 2 || this.mode == 3) && this.hasCartridge(this.mode)) {
+		// A program page owns the A action even while Minecraft's EditBox or the
+		// hotbar still has an internal focus. The fields only edit parameters.
+		if (this.leftPage == 3 && (this.mode == 2 || this.mode == 3)) {
+			if (this.hasCartridge(this.mode)) {
 				this.saveParameterValues();
 				ClientPlayNetworking.send(new DroneNetworking.ProgramPayload(this.menu.dronePos().asLong(), this.optionCursor,
 						this.parameterValue(this.parameterOne), this.parameterValue(this.parameterTwo)));
-				return;
 			}
+			return;
+		}
+		if (this.leftPage == 3 && this.focus != Focus.HOTBAR) {
 			if (this.mode != 1) return;
 			int inventory = this.inventorySlot();
 			int equipmentSlot = this.optionCursor == 1 ? DroneMenu.PROGRAM_DRIVE_SLOT
-					: this.optionCursor == 2 ? DroneMenu.EXCAVATE_CARTRIDGE_SLOT : DroneMenu.TOOL_SLOT;
+					: this.optionCursor == 2 ? DroneMenu.EXCAVATE_CARTRIDGE_SLOT : DroneMenu.SCANNER_CARTRIDGE_SLOT;
 			boolean fromTool = this.focus == Focus.DRONE
 					? !this.menu.getSlot(equipmentSlot).getItem().isEmpty()
 					: this.menu.getSlot(inventory).getItem().isEmpty();
@@ -317,15 +326,15 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 		if (this.leftPage == 3) {
 			if (this.mode == 1) {
 				int top = cy - 40;
-				ItemStack tool = this.menu.getSlot(DroneMenu.TOOL_SLOT).getItem();
+				ItemStack scanner = this.menu.getSlot(DroneMenu.SCANNER_CARTRIDGE_SLOT).getItem();
 				ItemStack build = this.menu.getSlot(DroneMenu.PROGRAM_DRIVE_SLOT).getItem();
 				ItemStack excavate = this.menu.getSlot(DroneMenu.EXCAVATE_CARTRIDGE_SLOT).getItem();
-				this.slot(graphics, tool, cx - 48, top, this.optionCursor == 0, this.focus == Focus.DRONE);
-				graphics.text(this.font, "Tool", cx - 22, top + 6, 0xFFFFFFFF, false);
+				this.slot(graphics, scanner, cx - 48, top, this.optionCursor == 0, this.focus == Focus.DRONE);
+				graphics.text(this.font, "Scanner Cartridge", cx - 22, top + 6, 0xFFFFD95A, false);
 				this.slot(graphics, build, cx - 48, top + 25, this.optionCursor == 1, this.focus == Focus.DRONE);
 				graphics.text(this.font, "Build Cartridge", cx - 22, top + 31, 0xFF65CFFF, false);
 				this.slot(graphics, excavate, cx - 48, top + 50, this.optionCursor == 2, this.focus == Focus.DRONE);
-				graphics.text(this.font, "Excavate Cartridge", cx - 22, top + 56, 0xFF62D68B, false);
+				graphics.text(this.font, "Excavate Cartridge", cx - 22, top + 56, 0xFFFF665E, false);
 				graphics.centeredText(this.font, "4/4", cx, cy + 51, 0xFF9AA4B2);
 			} else if (this.mode == 2 || this.mode == 3) {
 				if (this.hasCartridge(this.mode)) {
@@ -336,7 +345,7 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 						int y = top + i * 32;
 						boolean selected = i == this.optionCursor;
 						graphics.fill(cx - 58, y, cx + 58, y + 29, selected ? 0xDD28313D : 0xB010141A);
-						int cartridgeColor = this.mode == 2 ? 0xFF65CFFF : 0xFF62D68B;
+						int cartridgeColor = this.mode == 2 ? 0xFF65CFFF : 0xFFFF665E;
 						graphics.outline(cx - 58, y, 116, 29, selected && this.focus == Focus.DRONE ? 0xFFF4D35E : selected ? cartridgeColor : 0x706E747C);
 						graphics.text(this.font, programs[i], cx - 53, y + 2, cartridgeColor, false);
 						graphics.text(this.font, parameters[i][0], cx - 53, y + 17, 0xFFB8C4D6, false);
@@ -350,6 +359,9 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 				graphics.centeredText(this.font, "4/4", cx, cy + 51, 0xFF9AA4B2);
 			} else {
 				graphics.centeredText(this.font, "Name", cx, cy - 18, 0xFFB8C4D6);
+				if (this.menu.getSlot(DroneMenu.SCANNER_CARTRIDGE_SLOT).getItem().is(DigiMinerMod.BASIC_SCANNER_CARTRIDGE)) {
+					graphics.centeredText(this.font, "Coordinates I", cx, cy + 18, 0xFFFFD95A);
+				}
 				graphics.centeredText(this.font, "4/4", cx, cy + 51, 0xFF9AA4B2);
 			}
 			return;
@@ -404,6 +416,7 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 		DigiMinerConfig config = DigiMinerConfig.get();
 		String page = this.focus == Focus.DRONE ? (this.leftPage + 1) + "/4"
 				: this.focus == Focus.INVENTORY ? (this.inventoryPage + 1) + "/2" : (this.hotbarPage + 1) + "/2";
+		String action = this.leftPage == 3 && (this.mode == 2 || this.mode == 3) ? "Start" : "Move";
 		graphics.centeredText(this.font, "[RS] Inventory  [LS] Drone  [" + config.binding(ControllerAction.INVENTORY_HOTBAR_PREVIOUS).label()
 				+ "/" + config.binding(ControllerAction.INVENTORY_HOTBAR_NEXT).label() + "] Hotbar  ["
 				+ config.binding(ControllerAction.INVENTORY_PAGE_PREVIOUS).label() + "/"
@@ -411,7 +424,7 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 				this.width / 2, top - 23, 0xFFDEE5EF);
 		graphics.centeredText(this.font, "[" + config.binding(ControllerAction.INVENTORY_TRANSFER_HOTBAR).label()
 				+ "] Inventory <-> Hotbar  [" + config.binding(ControllerAction.INVENTORY_TRANSFER_SECONDARY).label()
-				+ "] Move  [" + config.binding(ControllerAction.INVENTORY_CLOSE).label() + "] Close",
+				+ "] " + action + "  [" + config.binding(ControllerAction.INVENTORY_CLOSE).label() + "] Close",
 				this.width / 2, top - 12, 0xFFB8C4D6);
 	}
 

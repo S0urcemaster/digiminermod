@@ -46,13 +46,14 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 
 	public DroneBlockEntity(BlockPos pos, BlockState state) {
 		super(DigiMinerMod.DRONE_BLOCK_ENTITY, pos, state);
-		this.equipmentInventory.setItem(0, new ItemStack(DigiMinerMod.DRONE_LIGHT));
+		this.equipmentInventory.setItem(0, new ItemStack(DigiMinerMod.BASIC_SCANNER_CARTRIDGE));
 		this.equipmentInventory.setItem(1, new ItemStack(DigiMinerMod.BASIC_BUILD_CARTRIDGE));
 		this.equipmentInventory.setItem(2, new ItemStack(DigiMinerMod.BASIC_EXCAVATE_CARTRIDGE));
 	}
 
 	public static void serverTick(net.minecraft.world.level.Level ignored, BlockPos pos, BlockState state, DroneBlockEntity drone) {
 		if (!(drone.level instanceof ServerLevel level) || drone.ownerId == null || level.getGameTime() % 4 != 0) return;
+		if (state.getValue(DroneBlock.LIT)) level.setBlock(pos, state.setValue(DroneBlock.LIT, false), 3);
 		if (drone.activeProgram >= 0) {
 			drone.runProgramStep(level);
 			return;
@@ -62,17 +63,19 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		if (owner == null || owner.level() != level) return;
 		BlockPos destination = owner.blockPosition().above();
 		int tetherLength = chebyshevDistance(pos, destination);
-		if (tetherLength <= 3) return;
+		if (horizontalDistance(pos, destination) <= 3 && pos.getY() == destination.getY()) return;
 		BlockPos next = drone.findNextPathStep(level, pos, destination, tetherLength);
 		if (next != null) drone.moveTo(level, next);
 	}
 
-	public void startProgram(int program, int parameterOne, int parameterTwo) {
+	public boolean startProgram(int program, int parameterOne, int parameterTwo) {
 		if (this.mode != DroneMode.BUILD || program != 0
-				|| !this.equipmentInventory.getItem(1).is(DigiMinerMod.BASIC_BUILD_CARTRIDGE)) return;
+				|| !this.equipmentInventory.getItem(1).is(DigiMinerMod.BASIC_BUILD_CARTRIDGE)) return false;
+		if (!(this.inventory.getItem(0).getItem() instanceof BlockItem) || parameterOne <= 0) return false;
 		this.activeProgram = program;
 		this.programRemaining = Math.max(0, Math.min(999, parameterOne));
 		this.setChanged();
+		return true;
 	}
 
 	private void runProgramStep(ServerLevel level) {
@@ -111,12 +114,12 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		int maximumVisited = Math.min(1200, 96 + tetherLength * 24);
 		PriorityQueue<PathNode> open = new PriorityQueue<>(Comparator.comparingDouble(PathNode::score));
 		Map<Long, Double> bestCosts = new HashMap<>();
-		open.add(new PathNode(start, 0.0, directionWeight * distanceOutsideTether(start, destination), null));
+		open.add(new PathNode(start, 0.0, directionWeight * followDistance(start, destination), null));
 		bestCosts.put(start.asLong(), 0.0);
 		int visited = 0;
 		while (!open.isEmpty() && visited++ < maximumVisited) {
 			PathNode node = open.poll();
-			if (distanceOutsideTether(node.pos(), destination) == 0 && node.firstStep() != null) return node.firstStep();
+			if (followDistance(node.pos(), destination) == 0 && node.firstStep() != null) return node.firstStep();
 			if (node.cost() >= maximumSteps) continue;
 			for (Direction direction : Direction.values()) {
 				BlockPos next = node.pos().relative(direction);
@@ -126,7 +129,7 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 				if (cost >= bestCosts.getOrDefault(next.asLong(), Double.POSITIVE_INFINITY)) continue;
 				bestCosts.put(next.asLong(), cost);
 				BlockPos first = node.firstStep() == null ? next : node.firstStep();
-				double score = cost + directionWeight * distanceOutsideTether(next, destination);
+				double score = cost + directionWeight * followDistance(next, destination);
 				open.add(new PathNode(next, cost, score, first));
 			}
 		}
@@ -138,9 +141,13 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 				Math.max(Math.abs(first.getY() - second.getY()), Math.abs(first.getZ() - second.getZ())));
 	}
 
-	private static int distanceOutsideTether(BlockPos pos, BlockPos destination) {
+	private static int horizontalDistance(BlockPos first, BlockPos second) {
+		return Math.max(Math.abs(first.getX() - second.getX()), Math.abs(first.getZ() - second.getZ()));
+	}
+
+	private static int followDistance(BlockPos pos, BlockPos destination) {
 		return Math.max(0, Math.abs(pos.getX() - destination.getX()) - 3)
-				+ Math.max(0, Math.abs(pos.getY() - destination.getY()) - 3)
+				+ Math.abs(pos.getY() - destination.getY()) * 2
 				+ Math.max(0, Math.abs(pos.getZ() - destination.getZ()) - 3);
 	}
 
@@ -148,7 +155,7 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		UUID owner = this.ownerId;
 		DroneMode oldMode = this.mode;
 		List<ItemStack> stacks = this.copyInventory();
-		ItemStack tool = this.equipmentInventory.getItem(0).copy();
+		ItemStack scannerCartridge = this.equipmentInventory.getItem(0).copy();
 		ItemStack programDrive = this.equipmentInventory.getItem(1).copy();
 		ItemStack excavateCartridge = this.equipmentInventory.getItem(2).copy();
 		int dx = target.getX() - this.worldPosition.getX(), dz = target.getZ() - this.worldPosition.getZ();
@@ -159,10 +166,10 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		level.setBlock(this.worldPosition, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
 		BlockState movedState = DigiMinerMod.DRONE_BLOCK.defaultBlockState()
 				.setValue(DroneBlock.FACING, this.facing)
-				.setValue(DroneBlock.LIT, tool.is(DigiMinerMod.DRONE_LIGHT));
+				.setValue(DroneBlock.LIT, false);
 		level.setBlock(target, movedState, 3);
 		if (level.getBlockEntity(target) instanceof DroneBlockEntity moved) {
-			moved.restore(owner, oldMode, stacks, tool, programDrive, excavateCartridge);
+			moved.restore(owner, oldMode, stacks, scannerCartridge, programDrive, excavateCartridge);
 			moved.facing = this.facing;
 			moved.activeProgram = this.activeProgram;
 			moved.programRemaining = this.programRemaining;
@@ -182,16 +189,16 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 	}
 
 	public void restore(UUID owner, DroneMode mode, List<ItemStack> stacks) {
-		this.restore(owner, mode, stacks, new ItemStack(DigiMinerMod.DRONE_LIGHT),
+		this.restore(owner, mode, stacks, new ItemStack(DigiMinerMod.BASIC_SCANNER_CARTRIDGE),
 				new ItemStack(DigiMinerMod.BASIC_BUILD_CARTRIDGE), new ItemStack(DigiMinerMod.BASIC_EXCAVATE_CARTRIDGE));
 	}
 
-	public void restore(UUID owner, DroneMode mode, List<ItemStack> stacks, ItemStack tool, ItemStack programDrive,
+	public void restore(UUID owner, DroneMode mode, List<ItemStack> stacks, ItemStack scannerCartridge, ItemStack programDrive,
 			ItemStack excavateCartridge) {
 		this.ownerId = owner;
 		this.mode = mode;
 		for (int i = 0; i < Math.min(27, stacks.size()); i++) this.inventory.setItem(i, stacks.get(i).copy());
-		this.equipmentInventory.setItem(0, tool.copy());
+		this.equipmentInventory.setItem(0, scannerCartridge.copy());
 		this.equipmentInventory.setItem(1, programDrive.copy());
 		this.equipmentInventory.setItem(2, excavateCartridge.copy());
 		this.setChanged();
@@ -228,7 +235,7 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		if (this.level == null) return;
 		BlockState state = this.getBlockState();
 		if (!state.hasProperty(DroneBlock.LIT)) return;
-		boolean lit = this.equipmentInventory.getItem(0).is(DigiMinerMod.DRONE_LIGHT);
+		boolean lit = false;
 		if (state.getValue(DroneBlock.LIT) != lit) this.level.setBlock(this.worldPosition, state.setValue(DroneBlock.LIT, lit), 3);
 	}
 	public void setMenuOpen(boolean menuOpen) { this.menuOpen = menuOpen; }
@@ -247,7 +254,7 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		output.putInt("ProgramRemaining", this.programRemaining);
 		output.putString("DroneName", this.droneName);
 		this.inventory.storeAsItemList(output.list("Inventory", ItemStack.CODEC));
-		if (!this.equipmentInventory.getItem(0).isEmpty()) output.store("Tool", ItemStack.CODEC, this.equipmentInventory.getItem(0));
+		if (!this.equipmentInventory.getItem(0).isEmpty()) output.store("ScannerCartridge", ItemStack.CODEC, this.equipmentInventory.getItem(0));
 		if (!this.equipmentInventory.getItem(1).isEmpty()) output.store("ProgramDrive", ItemStack.CODEC, this.equipmentInventory.getItem(1));
 		if (!this.equipmentInventory.getItem(2).isEmpty()) output.store("ExcavateCartridge", ItemStack.CODEC, this.equipmentInventory.getItem(2));
 	}
@@ -261,7 +268,8 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		this.programRemaining = input.getIntOr("ProgramRemaining", 0);
 		this.droneName = input.getStringOr("DroneName", "Digi");
 		this.inventory.fromItemList(input.listOrEmpty("Inventory", ItemStack.CODEC));
-		this.equipmentInventory.setItem(0, input.read("Tool", ItemStack.CODEC).orElseGet(() -> new ItemStack(DigiMinerMod.DRONE_LIGHT)));
+		this.equipmentInventory.setItem(0, input.read("ScannerCartridge", ItemStack.CODEC)
+				.orElseGet(() -> new ItemStack(DigiMinerMod.BASIC_SCANNER_CARTRIDGE)));
 		ItemStack oldDrive = input.read("ProgramDrive", ItemStack.CODEC).orElse(ItemStack.EMPTY);
 		this.equipmentInventory.setItem(1, oldDrive.is(DigiMinerMod.BASIC_PROGRAM_DRIVE)
 				? new ItemStack(DigiMinerMod.BASIC_BUILD_CARTRIDGE)

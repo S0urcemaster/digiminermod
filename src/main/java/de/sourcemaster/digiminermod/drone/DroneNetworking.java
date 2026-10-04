@@ -66,7 +66,9 @@ public final class DroneNetworking {
 			var pos = net.minecraft.core.BlockPos.of(payload.blockPos());
 			if (!(context.player().level().getBlockEntity(pos) instanceof DroneBlockEntity drone)
 					|| !drone.isOwner(context.player()) || !pos.closerToCenterThan(context.player().position(), 16.0)) return;
-			drone.startProgram(payload.program(), payload.parameterOne(), payload.parameterTwo());
+			boolean started = drone.startProgram(payload.program(), payload.parameterOne(), payload.parameterTwo());
+			context.player().sendOverlayMessage(net.minecraft.network.chat.Component.literal(started
+					? "Digi: Program started" : "Digi: Program cannot start"));
 		});
 		ServerPlayNetworking.registerGlobalReceiver(RenamePayload.TYPE, (payload, context) -> {
 			var pos = net.minecraft.core.BlockPos.of(payload.blockPos());

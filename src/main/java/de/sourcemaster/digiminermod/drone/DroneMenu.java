@@ -16,7 +16,7 @@ public final class DroneMenu extends AbstractContainerMenu {
 	public static final int DRONE_SLOTS = 27;
 	public static final int PLAYER_MAIN_START = 27;
 	public static final int HOTBAR_START = 54;
-	public static final int TOOL_SLOT = 63;
+	public static final int SCANNER_CARTRIDGE_SLOT = 63;
 	public static final int PROGRAM_DRIVE_SLOT = 64;
 	public static final int EXCAVATE_CARTRIDGE_SLOT = 65;
 	private final Container droneInventory;
@@ -53,8 +53,7 @@ public final class DroneMenu extends AbstractContainerMenu {
 		for (int i = 0; i < 9; i++) this.addSlot(new Slot(playerInventory, i, 0, 0));
 		this.addSlot(new Slot(toolInventory, 0, 0, 0) {
 			@Override public boolean mayPlace(ItemStack stack) {
-				return stack.is(DigiMinerMod.DRONE_LIGHT) || stack.is(DigiMinerMod.DRONE_DRILL)
-						|| stack.is(DigiMinerMod.DRONE_BUILDER);
+				return stack.is(DigiMinerMod.BASIC_SCANNER_CARTRIDGE);
 			}
 			@Override public int getMaxStackSize() { return 1; }
 		});
@@ -79,11 +78,11 @@ public final class DroneMenu extends AbstractContainerMenu {
 		if (!slot.hasItem()) return result;
 		ItemStack stack = slot.getItem();
 		result = stack.copy();
-		if (index < DRONE_SLOTS || index == TOOL_SLOT || index == PROGRAM_DRIVE_SLOT || index == EXCAVATE_CARTRIDGE_SLOT) {
-			if (!this.moveItemStackTo(stack, PLAYER_MAIN_START, TOOL_SLOT, true)) return ItemStack.EMPTY;
+		if (index < DRONE_SLOTS || index == SCANNER_CARTRIDGE_SLOT || index == PROGRAM_DRIVE_SLOT || index == EXCAVATE_CARTRIDGE_SLOT) {
+			if (!this.moveItemStackTo(stack, PLAYER_MAIN_START, SCANNER_CARTRIDGE_SLOT, true)) return ItemStack.EMPTY;
 		} else {
 			int equipmentSlot = this.slots.get(PROGRAM_DRIVE_SLOT).mayPlace(stack) ? PROGRAM_DRIVE_SLOT
-					: this.slots.get(EXCAVATE_CARTRIDGE_SLOT).mayPlace(stack) ? EXCAVATE_CARTRIDGE_SLOT : TOOL_SLOT;
+					: this.slots.get(EXCAVATE_CARTRIDGE_SLOT).mayPlace(stack) ? EXCAVATE_CARTRIDGE_SLOT : SCANNER_CARTRIDGE_SLOT;
 			boolean moved = this.slots.get(equipmentSlot).mayPlace(stack)
 					&& this.moveItemStackTo(stack, equipmentSlot, equipmentSlot + 1, false);
 			if (!moved && !this.moveItemStackTo(stack, 0, DRONE_SLOTS, false)) return ItemStack.EMPTY;

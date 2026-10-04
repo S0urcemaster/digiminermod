@@ -2,19 +2,23 @@
   "ambientocclusion": false,
   "textures": {
     "all": "minecraft:block/beacon",
-    "particle": "minecraft:block/beacon"
+    "front": "digiminermod:block/drone_front",
+    "side": "digiminermod:block/drone_side",
+    "back": "digiminermod:block/drone_back",
+    "top": "digiminermod:block/drone_top",
+    "particle": "digiminermod:block/drone_side"
   },
   "elements": [
     {
       "from": [3, 3, 3],
       "to": [13, 13, 13],
       "faces": {
-        "north": { "texture": "#all" },
-        "south": { "texture": "#all" },
-        "east": { "texture": "#all" },
-        "west": { "texture": "#all" },
-        "up": { "texture": "#all" },
-        "down": { "texture": "#all" }
+        "north": { "texture": "#front" },
+        "south": { "texture": "#back" },
+        "east": { "texture": "#side" },
+        "west": { "texture": "#side", "uv": [16, 0, 0, 16] },
+        "up": { "texture": "#top" },
+        "down": { "texture": "#top" }
       }
     }
   ]
