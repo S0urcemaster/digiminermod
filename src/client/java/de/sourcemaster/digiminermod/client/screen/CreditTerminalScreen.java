@@ -70,7 +70,11 @@ public final class CreditTerminalScreen extends Screen implements MenuAccess<Cre
 	private void handleATransfer(boolean pressed) {
 		long now = System.nanoTime();
 		if (pressed && !this.previousA) {
-			this.aFromTerminal = this.focus == Focus.TERMINAL;
+			this.aFromTerminal = switch (this.focus) {
+				case TERMINAL -> this.menu.getSlot(this.terminalCursor).getItem().isEmpty() ? false : true;
+				case INVENTORY -> this.menu.getSlot(this.inventorySlot()).getItem().isEmpty();
+				case HOTBAR -> false;
+			};
 			this.moveOne(this.terminalCursor, this.inventorySlot(), this.aFromTerminal);
 			this.nextARepeat = now + INITIAL_REPEAT_DELAY;
 		} else if (pressed && now >= this.nextARepeat) {
@@ -84,7 +88,11 @@ public final class CreditTerminalScreen extends Screen implements MenuAccess<Cre
 		int other = this.inventorySlot();
 		int hotbar = CreditTerminalMenu.HOTBAR_START + this.hotbarCursor;
 		if (pressed && !this.previousDpad) {
-			this.dpadFromOther = this.focus != Focus.HOTBAR;
+			this.dpadFromOther = this.focus == Focus.HOTBAR
+					? this.menu.getSlot(hotbar).getItem().isEmpty()
+					: this.focus == Focus.INVENTORY
+							? !this.menu.getSlot(other).getItem().isEmpty()
+							: true;
 			this.moveOne(other, hotbar, this.dpadFromOther);
 			this.nextDpadRepeat = now + INITIAL_REPEAT_DELAY;
 		} else if (pressed && now >= this.nextDpadRepeat) {
