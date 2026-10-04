@@ -19,13 +19,21 @@ import net.minecraft.client.gui.screens.inventory.MenuAccess;
 public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 	private static final int PAGE_SIZE = 14, SLOT_SIZE = 20;
 	private static final String[] MODES = {"Follow", "Static", "Build", "Excavate"};
-	private static final String[] BUILD_PROGRAMS = {"Bridge"};
+	private static final String[] BUILD_PROGRAMS = {"Bridge", "Wall", "Floor"};
+	private static final String[] EXCAVATE_PROGRAMS = {"3x3 Tunnel", "Shaft", "Room"};
+	private static final String[][] BUILD_PARAMETERS = {{"Len", ""}, {"Len", "H"}, {"Len", "W"}};
+	private static final String[][] EXCAVATE_PARAMETERS = {{"Len", ""}, {"Depth", ""}, {"Len", "W"}};
 	private enum Focus { DRONE, INVENTORY, HOTBAR }
 	private final DroneMenu menu;
 	private Focus focus = Focus.DRONE;
 	private int leftPage, mode, droneCursor, inventoryPage, inventoryCursor, hotbarCursor, hotbarPage, optionCursor;
 	private boolean previousA, previousDpad, previousLB, previousRB, previousLT, previousRT;
-	private EditBox parameterOne;
+	private EditBox parameterOne, parameterTwo;
+	private final String[][][] parameterValues = {
+			{{"10", ""}, {"10", "3"}, {"10", "3"}},
+			{{"10", ""}, {"10", ""}, {"10", "3"}}
+	};
+	private int parameterMode = 2, parameterProgram;
 
 	public DroneScreen(DroneMenu menu, Inventory inventory, Component title) { super(title); this.menu = menu; }
 	@Override public DroneMenu getMenu() { return this.menu; }
@@ -33,21 +41,35 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 		if (this.minecraft != null && this.minecraft.player != null) this.hotbarCursor = this.minecraft.player.getInventory().getSelectedSlot();
 		int spacing = Math.min(112, Math.max(82, this.width / 4));
 		int left = this.width / 2 - spacing;
-		this.parameterOne = this.addRenderableWidget(new EditBox(this.font, left - 25, Math.max(100, this.height / 2 - 10) + 21,
-				50, 18, Component.literal("Parameter 1")));
+		this.parameterOne = this.addRenderableWidget(new EditBox(this.font, left - 30, 0, 34, 14, Component.literal("Parameter 1")));
+		this.parameterTwo = this.addRenderableWidget(new EditBox(this.font, left + 25, 0, 34, 14, Component.literal("Parameter 2")));
 		this.parameterOne.setMaxLength(3);
-		this.parameterOne.setValue("10");
+		this.parameterTwo.setMaxLength(3);
+		this.parameterOne.setValue(this.parameterValues[0][0][0]);
+		this.parameterTwo.setValue(this.parameterValues[0][0][1]);
 		this.parameterOne.setHint(Component.literal("0-999"));
+		this.parameterTwo.setHint(Component.literal("0-999"));
 	}
 
 	@Override public void tick() {
 		this.mode = this.menu.mode();
 		boolean programPage = this.leftPage == 3 && (this.mode == 2 || this.mode == 3);
-		boolean basicPrograms = this.hasBasicProgramDrive();
+		boolean basicPrograms = this.hasCartridge(this.mode);
+		if (programPage && (this.parameterMode != this.mode || this.parameterProgram != this.optionCursor)) {
+			this.saveParameterValues();
+			this.parameterMode = this.mode;
+			this.parameterProgram = this.optionCursor;
+			this.loadParameterValues();
+		}
 		if (this.parameterOne != null) {
-			this.parameterOne.setVisible(programPage && this.mode == 2 && basicPrograms);
-			this.parameterOne.setFocused(programPage && this.mode == 2 && basicPrograms);
-			if (programPage && this.mode == 2 && basicPrograms && this.getFocused() != this.parameterOne) this.setFocused(this.parameterOne);
+			boolean fields = programPage && basicPrograms;
+			String[][] definitions = this.parameterDefinitions();
+			boolean second = fields && !definitions[this.optionCursor][1].isEmpty();
+			int rowY = Math.max(100, this.height / 2 - 10) - 45 + this.optionCursor * 32 + 12;
+			this.parameterOne.setY(rowY); this.parameterTwo.setY(rowY);
+			this.parameterOne.setVisible(fields); this.parameterTwo.setVisible(second);
+			if (fields && this.getFocused() != this.parameterOne && this.getFocused() != this.parameterTwo) this.setFocused(this.parameterOne);
+			if (!fields && (this.getFocused() == this.parameterOne || this.getFocused() == this.parameterTwo)) this.setFocused(null);
 		}
 		ControllerSupport.Snapshot pad = ControllerSupport.poll();
 		if (!pad.connected()) return;
@@ -87,7 +109,7 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 		}
 		else if (x * x + y * y >= 0.25F) {
 			this.focus = Focus.DRONE;
-			int count = this.mode == 1 ? 2 : this.mode == 2 ? BUILD_PROGRAMS.length : 1;
+			int count = this.mode == 1 ? 3 : this.mode == 2 || this.mode == 3 ? 3 : 1;
 			this.optionCursor = Math.max(0, Math.min(count - 1, Math.round((y + 1) * 0.5F * (count - 1))));
 		}
 	}
@@ -108,14 +130,16 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 			this.mode = this.optionCursor; ClientPlayNetworking.send(new DroneNetworking.CommandPayload(this.menu.dronePos().asLong(), this.mode)); return;
 		}
 		if (this.leftPage == 3 && this.focus != Focus.HOTBAR) {
-			if (this.mode == 2 && this.hasBasicProgramDrive()) {
+			if ((this.mode == 2 || this.mode == 3) && this.hasCartridge(this.mode)) {
+				this.saveParameterValues();
 				ClientPlayNetworking.send(new DroneNetworking.ProgramPayload(this.menu.dronePos().asLong(), this.optionCursor,
-						this.parameterValue(this.parameterOne), 0));
+						this.parameterValue(this.parameterOne), this.parameterValue(this.parameterTwo)));
 				return;
 			}
 			if (this.mode != 1) return;
 			int inventory = this.inventorySlot();
-			int equipmentSlot = this.optionCursor == 1 ? DroneMenu.PROGRAM_DRIVE_SLOT : DroneMenu.TOOL_SLOT;
+			int equipmentSlot = this.optionCursor == 1 ? DroneMenu.PROGRAM_DRIVE_SLOT
+					: this.optionCursor == 2 ? DroneMenu.EXCAVATE_CARTRIDGE_SLOT : DroneMenu.TOOL_SLOT;
 			boolean fromTool = this.focus == Focus.DRONE
 					? !this.menu.getSlot(equipmentSlot).getItem().isEmpty()
 					: this.menu.getSlot(inventory).getItem().isEmpty();
@@ -128,8 +152,23 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 		this.moveOne(drone, inventory, fromDrone);
 	}
 
-	private boolean hasBasicProgramDrive() {
-		return this.menu.getSlot(DroneMenu.PROGRAM_DRIVE_SLOT).getItem().is(DigiMinerMod.BASIC_PROGRAM_DRIVE);
+	private boolean hasCartridge(int selectedMode) {
+		return selectedMode == 2
+				? this.menu.getSlot(DroneMenu.PROGRAM_DRIVE_SLOT).getItem().is(DigiMinerMod.BASIC_BUILD_CARTRIDGE)
+				: selectedMode == 3 && this.menu.getSlot(DroneMenu.EXCAVATE_CARTRIDGE_SLOT).getItem().is(DigiMinerMod.BASIC_EXCAVATE_CARTRIDGE);
+	}
+
+	private String[] programNames() { return this.mode == 3 ? EXCAVATE_PROGRAMS : BUILD_PROGRAMS; }
+	private String[][] parameterDefinitions() { return this.mode == 3 ? EXCAVATE_PARAMETERS : BUILD_PARAMETERS; }
+	private void saveParameterValues() {
+		if (this.parameterOne == null || this.parameterMode < 2 || this.parameterMode > 3) return;
+		this.parameterValues[this.parameterMode - 2][this.parameterProgram][0] = this.parameterOne.getValue();
+		this.parameterValues[this.parameterMode - 2][this.parameterProgram][1] = this.parameterTwo.getValue();
+	}
+	private void loadParameterValues() {
+		if (this.parameterOne == null || this.parameterMode < 2 || this.parameterMode > 3) return;
+		this.parameterOne.setValue(this.parameterValues[this.parameterMode - 2][this.parameterProgram][0]);
+		this.parameterTwo.setValue(this.parameterValues[this.parameterMode - 2][this.parameterProgram][1]);
 	}
 
 	private int parameterValue(EditBox field) {
@@ -167,6 +206,7 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 		if (this.leftPage < 2) this.ring(graphics, left, cy, true); else this.options(graphics, left, cy);
 		this.ring(graphics, right, cy, false, radius);
 		if (this.parameterOne != null && this.parameterOne.isVisible()) this.parameterOne.extractWidgetRenderState(graphics, mouseX, mouseY, partialTick);
+		if (this.parameterTwo != null && this.parameterTwo.isVisible()) this.parameterTwo.extractWidgetRenderState(graphics, mouseX, mouseY, partialTick);
 		this.extractHints(graphics); this.hotbar(graphics);
 	}
 
@@ -193,24 +233,36 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 	private void options(GuiGraphicsExtractor graphics, int cx, int cy) {
 		if (this.leftPage == 3) {
 			if (this.mode == 1) {
-				int top = cy - 30;
+				int top = cy - 40;
 				ItemStack tool = this.menu.getSlot(DroneMenu.TOOL_SLOT).getItem();
-				ItemStack drive = this.menu.getSlot(DroneMenu.PROGRAM_DRIVE_SLOT).getItem();
+				ItemStack build = this.menu.getSlot(DroneMenu.PROGRAM_DRIVE_SLOT).getItem();
+				ItemStack excavate = this.menu.getSlot(DroneMenu.EXCAVATE_CARTRIDGE_SLOT).getItem();
 				this.slot(graphics, tool, cx - 48, top, this.optionCursor == 0, this.focus == Focus.DRONE);
 				graphics.text(this.font, "Tool", cx - 22, top + 6, 0xFFFFFFFF, false);
-				this.slot(graphics, drive, cx - 48, top + 27, this.optionCursor == 1, this.focus == Focus.DRONE);
-				graphics.text(this.font, "Program Drive", cx - 22, top + 33, 0xFFFFFFFF, false);
+				this.slot(graphics, build, cx - 48, top + 25, this.optionCursor == 1, this.focus == Focus.DRONE);
+				graphics.text(this.font, "Build Cartridge", cx - 22, top + 31, 0xFFFFFFFF, false);
+				this.slot(graphics, excavate, cx - 48, top + 50, this.optionCursor == 2, this.focus == Focus.DRONE);
+				graphics.text(this.font, "Excavate Cartridge", cx - 22, top + 56, 0xFFFFFFFF, false);
 				graphics.centeredText(this.font, "4/4", cx, cy + 51, 0xFF9AA4B2);
-			} else if (this.mode == 2) {
-				if (this.hasBasicProgramDrive()) {
-					graphics.fill(cx - 55, cy - 35, cx + 55, cy - 13, 0xDD28313D);
-					graphics.outline(cx - 55, cy - 35, 110, 22, this.focus == Focus.DRONE ? 0xFFF4D35E : 0xFF65CFFF);
-					graphics.centeredText(this.font, BUILD_PROGRAMS[this.optionCursor], cx, cy - 28, 0xFFFFFFFF);
-					graphics.centeredText(this.font, "Blocks", cx, cy + 10, 0xFFB8C4D6);
-				} else graphics.centeredText(this.font, "No program drive", cx, cy - 5, 0xFFB8C4D6);
-				graphics.centeredText(this.font, "4/4", cx, cy + 51, 0xFF9AA4B2);
-			} else if (this.mode == 3) {
-				graphics.centeredText(this.font, "No excavation programs yet", cx, cy - 5, 0xFFB8C4D6);
+			} else if (this.mode == 2 || this.mode == 3) {
+				if (this.hasCartridge(this.mode)) {
+					String[] programs = this.programNames();
+					String[][] parameters = this.parameterDefinitions();
+					int top = cy - 45;
+					for (int i = 0; i < 3; i++) {
+						int y = top + i * 32;
+						boolean selected = i == this.optionCursor;
+						graphics.fill(cx - 58, y, cx + 58, y + 29, selected ? 0xDD28313D : 0xB010141A);
+						graphics.outline(cx - 58, y, 116, 29, selected && this.focus == Focus.DRONE ? 0xFFF4D35E : selected ? 0xFF65CFFF : 0x706E747C);
+						graphics.text(this.font, programs[i], cx - 53, y + 2, 0xFFFFFFFF, false);
+						graphics.text(this.font, parameters[i][0], cx - 53, y + 17, 0xFFB8C4D6, false);
+						if (!parameters[i][1].isEmpty()) graphics.text(this.font, parameters[i][1], cx + 4, y + 17, 0xFFB8C4D6, false);
+						if (!selected) {
+							graphics.text(this.font, this.parameterValues[this.mode - 2][i][0], cx - 24, y + 17, 0xFFFFFFFF, false);
+							if (!parameters[i][1].isEmpty()) graphics.text(this.font, this.parameterValues[this.mode - 2][i][1], cx + 35, y + 17, 0xFFFFFFFF, false);
+						}
+					}
+				} else graphics.centeredText(this.font, "No " + (this.mode == 2 ? "build" : "excavate") + " cartridge", cx, cy - 5, 0xFFB8C4D6);
 				graphics.centeredText(this.font, "4/4", cx, cy + 51, 0xFF9AA4B2);
 			} else {
 				graphics.centeredText(this.font, "Select Static, Build or Excavate", cx, cy - 5, 0xFFB8C4D6);

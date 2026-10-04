@@ -32,7 +32,7 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 	private DroneMode mode = DroneMode.FOLLOW;
 	private Direction facing = Direction.NORTH;
 	private final SimpleContainer inventory = new SimpleContainer(27);
-	private final SimpleContainer equipmentInventory = new SimpleContainer(2) {
+	private final SimpleContainer equipmentInventory = new SimpleContainer(3) {
 		@Override public void setChanged() {
 			super.setChanged();
 			DroneBlockEntity.this.updateLightState();
@@ -46,7 +46,8 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 	public DroneBlockEntity(BlockPos pos, BlockState state) {
 		super(DigiMinerMod.DRONE_BLOCK_ENTITY, pos, state);
 		this.equipmentInventory.setItem(0, new ItemStack(DigiMinerMod.DRONE_LIGHT));
-		this.equipmentInventory.setItem(1, new ItemStack(DigiMinerMod.BASIC_PROGRAM_DRIVE));
+		this.equipmentInventory.setItem(1, new ItemStack(DigiMinerMod.BASIC_BUILD_CARTRIDGE));
+		this.equipmentInventory.setItem(2, new ItemStack(DigiMinerMod.BASIC_EXCAVATE_CARTRIDGE));
 	}
 
 	public static void serverTick(net.minecraft.world.level.Level ignored, BlockPos pos, BlockState state, DroneBlockEntity drone) {
@@ -67,7 +68,7 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 
 	public void startProgram(int program, int parameterOne, int parameterTwo) {
 		if (this.mode != DroneMode.BUILD || program != 0
-				|| !this.equipmentInventory.getItem(1).is(DigiMinerMod.BASIC_PROGRAM_DRIVE)) return;
+				|| !this.equipmentInventory.getItem(1).is(DigiMinerMod.BASIC_BUILD_CARTRIDGE)) return;
 		this.activeProgram = program;
 		this.programRemaining = Math.max(0, Math.min(999, parameterOne));
 		this.setChanged();
@@ -148,6 +149,7 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		List<ItemStack> stacks = this.copyInventory();
 		ItemStack tool = this.equipmentInventory.getItem(0).copy();
 		ItemStack programDrive = this.equipmentInventory.getItem(1).copy();
+		ItemStack excavateCartridge = this.equipmentInventory.getItem(2).copy();
 		int dx = target.getX() - this.worldPosition.getX(), dz = target.getZ() - this.worldPosition.getZ();
 		if (dx > 0) this.facing = Direction.EAST;
 		else if (dx < 0) this.facing = Direction.WEST;
@@ -159,7 +161,7 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 				.setValue(DroneBlock.LIT, tool.is(DigiMinerMod.DRONE_LIGHT));
 		level.setBlock(target, movedState, 3);
 		if (level.getBlockEntity(target) instanceof DroneBlockEntity moved) {
-			moved.restore(owner, oldMode, stacks, tool, programDrive);
+			moved.restore(owner, oldMode, stacks, tool, programDrive, excavateCartridge);
 			moved.facing = this.facing;
 			moved.activeProgram = this.activeProgram;
 			moved.programRemaining = this.programRemaining;
@@ -178,15 +180,18 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 	}
 
 	public void restore(UUID owner, DroneMode mode, List<ItemStack> stacks) {
-		this.restore(owner, mode, stacks, new ItemStack(DigiMinerMod.DRONE_LIGHT), new ItemStack(DigiMinerMod.BASIC_PROGRAM_DRIVE));
+		this.restore(owner, mode, stacks, new ItemStack(DigiMinerMod.DRONE_LIGHT),
+				new ItemStack(DigiMinerMod.BASIC_BUILD_CARTRIDGE), new ItemStack(DigiMinerMod.BASIC_EXCAVATE_CARTRIDGE));
 	}
 
-	public void restore(UUID owner, DroneMode mode, List<ItemStack> stacks, ItemStack tool, ItemStack programDrive) {
+	public void restore(UUID owner, DroneMode mode, List<ItemStack> stacks, ItemStack tool, ItemStack programDrive,
+			ItemStack excavateCartridge) {
 		this.ownerId = owner;
 		this.mode = mode;
 		for (int i = 0; i < Math.min(27, stacks.size()); i++) this.inventory.setItem(i, stacks.get(i).copy());
 		this.equipmentInventory.setItem(0, tool.copy());
 		this.equipmentInventory.setItem(1, programDrive.copy());
+		this.equipmentInventory.setItem(2, excavateCartridge.copy());
 		this.setChanged();
 		this.rememberPosition();
 	}
@@ -234,6 +239,7 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		this.inventory.storeAsItemList(output.list("Inventory", ItemStack.CODEC));
 		if (!this.equipmentInventory.getItem(0).isEmpty()) output.store("Tool", ItemStack.CODEC, this.equipmentInventory.getItem(0));
 		if (!this.equipmentInventory.getItem(1).isEmpty()) output.store("ProgramDrive", ItemStack.CODEC, this.equipmentInventory.getItem(1));
+		if (!this.equipmentInventory.getItem(2).isEmpty()) output.store("ExcavateCartridge", ItemStack.CODEC, this.equipmentInventory.getItem(2));
 	}
 
 	@Override protected void loadAdditional(ValueInput input) {
@@ -245,8 +251,12 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		this.programRemaining = input.getIntOr("ProgramRemaining", 0);
 		this.inventory.fromItemList(input.listOrEmpty("Inventory", ItemStack.CODEC));
 		this.equipmentInventory.setItem(0, input.read("Tool", ItemStack.CODEC).orElseGet(() -> new ItemStack(DigiMinerMod.DRONE_LIGHT)));
-		this.equipmentInventory.setItem(1, input.read("ProgramDrive", ItemStack.CODEC)
-				.orElseGet(() -> new ItemStack(DigiMinerMod.BASIC_PROGRAM_DRIVE)));
+		ItemStack oldDrive = input.read("ProgramDrive", ItemStack.CODEC).orElse(ItemStack.EMPTY);
+		this.equipmentInventory.setItem(1, oldDrive.is(DigiMinerMod.BASIC_PROGRAM_DRIVE)
+				? new ItemStack(DigiMinerMod.BASIC_BUILD_CARTRIDGE)
+				: oldDrive.isEmpty() ? new ItemStack(DigiMinerMod.BASIC_BUILD_CARTRIDGE) : oldDrive);
+		this.equipmentInventory.setItem(2, input.read("ExcavateCartridge", ItemStack.CODEC)
+				.orElseGet(() -> new ItemStack(DigiMinerMod.BASIC_EXCAVATE_CARTRIDGE)));
 	}
 
 	private record PathNode(BlockPos pos, double cost, double score, BlockPos firstStep) {}

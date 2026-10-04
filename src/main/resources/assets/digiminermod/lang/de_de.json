@@ -6,6 +6,8 @@
   "item.digiminermod.drone_drill": "Drohnenbohrer",
   "item.digiminermod.drone_builder": "Drohnen-Bauwerkzeug",
   "item.digiminermod.basic_program_drive": "Basis-Programmdatenträger",
+  "item.digiminermod.basic_build_cartridge": "Basis-Bau-Cartridge",
+  "item.digiminermod.basic_excavate_cartridge": "Basis-Grabungs-Cartridge",
   "entity.digiminermod.drone": "Drohne"
   ,"block.digiminermod.drone": "Drohne"
 }
