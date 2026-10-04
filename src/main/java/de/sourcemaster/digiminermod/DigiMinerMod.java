@@ -69,13 +69,13 @@ public final class DigiMinerMod implements ModInitializer {
 			new Item(new Item.Properties().setId(BASIC_PROGRAM_DRIVE_KEY).stacksTo(1)));
 	public static final ResourceKey<Item> BASIC_BUILD_CARTRIDGE_KEY = ResourceKey.create(Registries.ITEM, id("basic_build_cartridge"));
 	public static final Item BASIC_BUILD_CARTRIDGE = Registry.register(BuiltInRegistries.ITEM, BASIC_BUILD_CARTRIDGE_KEY,
-			new Item(new Item.Properties().setId(BASIC_BUILD_CARTRIDGE_KEY).stacksTo(1)));
+			new Item(new Item.Properties().setId(BASIC_BUILD_CARTRIDGE_KEY).durability(1000)));
 	public static final ResourceKey<Item> BASIC_EXCAVATE_CARTRIDGE_KEY = ResourceKey.create(Registries.ITEM, id("basic_excavate_cartridge"));
 	public static final Item BASIC_EXCAVATE_CARTRIDGE = Registry.register(BuiltInRegistries.ITEM, BASIC_EXCAVATE_CARTRIDGE_KEY,
-			new Item(new Item.Properties().setId(BASIC_EXCAVATE_CARTRIDGE_KEY).stacksTo(1)));
+			new Item(new Item.Properties().setId(BASIC_EXCAVATE_CARTRIDGE_KEY).durability(1000)));
 	public static final ResourceKey<Item> BASIC_SCANNER_CARTRIDGE_KEY = ResourceKey.create(Registries.ITEM, id("basic_scanner_cartridge"));
 	public static final Item BASIC_SCANNER_CARTRIDGE = Registry.register(BuiltInRegistries.ITEM, BASIC_SCANNER_CARTRIDGE_KEY,
-			new ScannerCartridgeItem(new Item.Properties().setId(BASIC_SCANNER_CARTRIDGE_KEY).stacksTo(1)));
+			new ScannerCartridgeItem(new Item.Properties().setId(BASIC_SCANNER_CARTRIDGE_KEY).durability(7 * 24000)));
 	public static final ResourceKey<Block> DRONE_BLOCK_KEY = ResourceKey.create(Registries.BLOCK, id("drone"));
 	public static final DroneBlock DRONE_BLOCK = Registry.register(BuiltInRegistries.BLOCK, DRONE_BLOCK_KEY,
 			new DroneBlock(BlockBehaviour.Properties.of().setId(DRONE_BLOCK_KEY).strength(-1.0F, 3600000.0F)

@@ -7,11 +7,13 @@ import net.minecraft.core.BlockPos;
 public final class ScannerHud {
 	private static BlockPos dronePosition;
 	private static boolean ironNearby;
+	private static boolean diamondNearby;
 	private static long validUntil;
 
-	public static void update(long packedPosition, boolean iron) {
+	public static void update(long packedPosition, boolean iron, boolean diamond) {
 		dronePosition = BlockPos.of(packedPosition);
 		ironNearby = iron;
+		diamondNearby = diamond;
 		validUntil = System.currentTimeMillis() + 2500L;
 	}
 
@@ -23,5 +25,7 @@ public final class ScannerHud {
 				+ dronePosition.getZ(), 8, 8, 0xFFFFD95A, true);
 		graphics.text(minecraft.font, "Iron: " + (ironNearby ? "Beep" : "Nothing"), 8, 19,
 				ironNearby ? 0xFFFFB85C : 0xFFB8C4D6, true);
+		graphics.text(minecraft.font, "Diamond: " + (diamondNearby ? "Beep" : "Nothing"), 8, 30,
+				diamondNearby ? 0xFF65E8FF : 0xFFB8C4D6, true);
 	}
 }
