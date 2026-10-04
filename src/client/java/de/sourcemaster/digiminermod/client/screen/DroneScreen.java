@@ -33,7 +33,7 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 	private boolean dpadFromInventory;
 	private long nextDpadRepeat;
 	private EditBox parameterOne, parameterTwo, parameterThree, droneName;
-	private final String[][][] parameterValues = {
+	private static final String[][][] SESSION_PARAMETER_VALUES = {
 			{{"10", "", ""}, {"10", "3", ""}, {"10", "3", ""}},
 			{{"10", "", ""}, {"10", "", ""}, {"10", "5", "3"}}
 	};
@@ -53,9 +53,9 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 		this.parameterOne.setMaxLength(2);
 		this.parameterTwo.setMaxLength(2);
 		this.parameterThree.setMaxLength(2);
-		this.parameterOne.setValue(this.parameterValues[0][0][0]);
-		this.parameterTwo.setValue(this.parameterValues[0][0][1]);
-		this.parameterThree.setValue(this.parameterValues[0][0][2]);
+		this.parameterOne.setValue(SESSION_PARAMETER_VALUES[0][0][0]);
+		this.parameterTwo.setValue(SESSION_PARAMETER_VALUES[0][0][1]);
+		this.parameterThree.setValue(SESSION_PARAMETER_VALUES[0][0][2]);
 		this.parameterOne.setHint(Component.literal("1-99"));
 		this.parameterTwo.setHint(Component.literal("1-99"));
 		this.parameterThree.setHint(Component.literal("1-99"));
@@ -269,15 +269,15 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 	private String[][] parameterDefinitions() { return this.mode == 3 ? EXCAVATE_PARAMETERS : BUILD_PARAMETERS; }
 	private void saveParameterValues() {
 		if (this.parameterOne == null || this.parameterMode < 2 || this.parameterMode > 3) return;
-		this.parameterValues[this.parameterMode - 2][this.parameterProgram][0] = this.parameterOne.getValue();
-		this.parameterValues[this.parameterMode - 2][this.parameterProgram][1] = this.parameterTwo.getValue();
-		this.parameterValues[this.parameterMode - 2][this.parameterProgram][2] = this.parameterThree.getValue();
+		SESSION_PARAMETER_VALUES[this.parameterMode - 2][this.parameterProgram][0] = this.parameterOne.getValue();
+		SESSION_PARAMETER_VALUES[this.parameterMode - 2][this.parameterProgram][1] = this.parameterTwo.getValue();
+		SESSION_PARAMETER_VALUES[this.parameterMode - 2][this.parameterProgram][2] = this.parameterThree.getValue();
 	}
 	private void loadParameterValues() {
 		if (this.parameterOne == null || this.parameterMode < 2 || this.parameterMode > 3) return;
-		this.parameterOne.setValue(this.parameterValues[this.parameterMode - 2][this.parameterProgram][0]);
-		this.parameterTwo.setValue(this.parameterValues[this.parameterMode - 2][this.parameterProgram][1]);
-		this.parameterThree.setValue(this.parameterValues[this.parameterMode - 2][this.parameterProgram][2]);
+		this.parameterOne.setValue(SESSION_PARAMETER_VALUES[this.parameterMode - 2][this.parameterProgram][0]);
+		this.parameterTwo.setValue(SESSION_PARAMETER_VALUES[this.parameterMode - 2][this.parameterProgram][1]);
+		this.parameterThree.setValue(SESSION_PARAMETER_VALUES[this.parameterMode - 2][this.parameterProgram][2]);
 	}
 
 	private int parameterValue(EditBox field) {
@@ -385,7 +385,7 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 						if (!selected) {
 							for (int field = 0; field < 3; field++) {
 								if (!parameters[i][field].isEmpty()) graphics.text(this.font,
-										this.parameterValues[this.mode - 2][i][field], columnX[field] + 20, y + 17, 0xFFFFFFFF, false);
+										SESSION_PARAMETER_VALUES[this.mode - 2][i][field], columnX[field] + 20, y + 17, 0xFFFFFFFF, false);
 							}
 						}
 					}
@@ -465,5 +465,6 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 	}
 
 	@Override public boolean isPauseScreen() { return false; }
+	@Override public void removed() { this.saveParameterValues(); super.removed(); }
 	@Override public void onClose() { if (this.minecraft != null && this.minecraft.player != null) this.minecraft.player.closeContainer(); }
 }

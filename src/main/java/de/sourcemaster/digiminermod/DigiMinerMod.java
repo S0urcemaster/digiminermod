@@ -112,7 +112,7 @@ public final class DigiMinerMod implements ModInitializer {
 			}
 			if (!level.isClientSide() && level.getBlockEntity(pos) instanceof DroneBlockEntity drone
 					&& drone.isOwner(player)) {
-				drone.pushFromHit(direction, player.isShiftKeyDown());
+				drone.pushFromHit(direction, player.isShiftKeyDown(), player);
 			}
 			return net.minecraft.world.InteractionResult.SUCCESS;
 		});

@@ -4,6 +4,7 @@ import de.sourcemaster.digiminermod.DigiMinerMod;
 import de.sourcemaster.digiminermod.client.config.DigiMinerConfig;
 import de.sourcemaster.digiminermod.client.input.ControllerAction;
 import de.sourcemaster.digiminermod.client.input.ControllerSupport;
+import de.sourcemaster.digiminermod.client.mixin.MinecraftAccessor;
 import de.sourcemaster.digiminermod.client.screen.RadialInventoryScreen;
 import de.sourcemaster.digiminermod.client.screen.RadialCraftingScreen;
 import de.sourcemaster.digiminermod.client.screen.DroneScreen;
@@ -87,6 +88,9 @@ public final class DigiMinerModClient implements ClientModInitializer {
 			if (controller.connected() && client.player != null && client.gui.screen() == null) {
 				DigiMinerConfig config = DigiMinerConfig.get();
 				boolean attackButton = controller.pressed(config.binding(ControllerAction.WORLD_ATTACK));
+				if (attackButton && !this.previousAttackButton) {
+					((MinecraftAccessor) client).digiminermod$startAttack();
+				}
 				if (config.startStopMining()) {
 					if (attackButton && !this.previousAttackButton) this.miningLatched = !this.miningLatched;
 				} else {

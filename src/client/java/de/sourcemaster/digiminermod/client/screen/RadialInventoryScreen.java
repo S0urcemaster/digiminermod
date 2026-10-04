@@ -492,6 +492,8 @@ public final class RadialInventoryScreen extends Screen {
 		}
 
 		List<RecipeSuggestion> matches = new ArrayList<>();
+		StackedItemContents inventoryContents = new StackedItemContents();
+		this.minecraft.player.getInventory().fillStackedContents(inventoryContents);
 		for (RecipeDisplayEntry entry : all) {
 			if (!fitsInTwoByTwo(entry)) continue;
 			if (entry.craftingRequirements().isEmpty()
@@ -508,9 +510,11 @@ public final class RadialInventoryScreen extends Screen {
 			int utilityScore = dependencyScore * 100
 					+ (output.isDamageableItem() ? 40 : 0)
 					+ (output.getItem() instanceof BlockItem ? 10 : 0);
-			matches.add(new RecipeSuggestion(entry, output, recipeGrid(entry, context), utilityScore));
+			matches.add(new RecipeSuggestion(entry, output, recipeGrid(entry, context), utilityScore,
+					entry.canCraft(inventoryContents)));
 		}
-		matches.sort(Comparator.comparingInt(RecipeSuggestion::score).reversed()
+		matches.sort(Comparator.comparing(RecipeSuggestion::craftable).reversed()
+				.thenComparing(Comparator.comparingInt(RecipeSuggestion::score).reversed())
 				.thenComparing(suggestion -> suggestion.output().getHoverName().getString()));
 		this.recipeSuggestions = List.copyOf(matches.subList(0, Math.min(PAGE_SIZE, matches.size())));
 		this.recipeCursor = Math.min(this.recipeCursor, Math.max(0, this.recipeSuggestions.size() - 1));
@@ -581,7 +585,8 @@ public final class RadialInventoryScreen extends Screen {
 		};
 	}
 
-	private record RecipeSuggestion(RecipeDisplayEntry entry, ItemStack output, List<ItemStack> grid, int score) {}
+	private record RecipeSuggestion(
+			RecipeDisplayEntry entry, ItemStack output, List<ItemStack> grid, int score, boolean craftable) {}
 
 	private int hotbarMenuSlot() {
 		return InventoryMenu.USE_ROW_SLOT_START + this.hotbarCursor;
