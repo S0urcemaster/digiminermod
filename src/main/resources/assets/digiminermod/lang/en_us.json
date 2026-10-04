@@ -1,6 +1,5 @@
 {
   "item.digiminermod.spawner_scanner": "Survey Scanner",
-  "item.digiminermod.iron_scanner": "Iron Scanner",
   "item.digiminermod.drone_core": "Drone Core",
   "item.digiminermod.drone_light": "Drone Light",
   "item.digiminermod.drone_drill": "Drone Drill",
@@ -11,4 +10,5 @@
   "item.digiminermod.basic_scanner_cartridge": "Basic Scanner Cartridge",
   "entity.digiminermod.drone": "Drone"
   ,"block.digiminermod.drone": "Drone"
+  ,"block.digiminermod.credit_terminal": "Credit Terminal"
 }

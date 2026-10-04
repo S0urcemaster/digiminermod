@@ -6,6 +6,9 @@ import de.sourcemaster.digiminermod.drone.DroneNetworking;
 import de.sourcemaster.digiminermod.drone.DroneBlock;
 import de.sourcemaster.digiminermod.drone.DroneBlockEntity;
 import de.sourcemaster.digiminermod.drone.DroneMode;
+import de.sourcemaster.digiminermod.credit.CreditAccount;
+import de.sourcemaster.digiminermod.credit.CreditTerminalBlock;
+import de.sourcemaster.digiminermod.credit.CreditTerminalBlockEntity;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
@@ -17,6 +20,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.protocol.game.ClientboundRecipeBookAddPacket;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.entity.EntityType;
@@ -42,9 +46,6 @@ public final class DigiMinerMod implements ModInitializer {
 	public static final ResourceKey<Item> SPAWNER_SCANNER_KEY = ResourceKey.create(Registries.ITEM, id("spawner_scanner"));
 	public static final Item SPAWNER_SCANNER = Registry.register(BuiltInRegistries.ITEM, SPAWNER_SCANNER_KEY,
 			new Item(new Item.Properties().setId(SPAWNER_SCANNER_KEY).stacksTo(1)));
-	public static final ResourceKey<Item> IRON_SCANNER_KEY = ResourceKey.create(Registries.ITEM, id("iron_scanner"));
-	public static final Item IRON_SCANNER = Registry.register(BuiltInRegistries.ITEM, IRON_SCANNER_KEY,
-			new Item(new Item.Properties().setId(IRON_SCANNER_KEY).stacksTo(1)));
 	public static final ResourceKey<EntityType<?>> DRONE_KEY = ResourceKey.create(Registries.ENTITY_TYPE, id("drone"));
 	public static final EntityType<DroneEntity> DRONE = Registry.register(BuiltInRegistries.ENTITY_TYPE, DRONE_KEY,
 			EntityType.Builder.of(DroneEntity::new, MobCategory.MISC).sized(0.9F, 1.4F)
@@ -84,6 +85,17 @@ public final class DigiMinerMod implements ModInitializer {
 	public static final ResourceKey<MenuType<?>> DRONE_MENU_KEY = ResourceKey.create(Registries.MENU, id("drone"));
 	public static final MenuType<DroneMenu> DRONE_MENU = Registry.register(BuiltInRegistries.MENU, DRONE_MENU_KEY,
 			new ExtendedMenuType<>(DroneMenu::new, net.minecraft.core.BlockPos.STREAM_CODEC.cast()));
+	public static final ResourceKey<Block> CREDIT_TERMINAL_BLOCK_KEY = ResourceKey.create(Registries.BLOCK, id("credit_terminal"));
+	public static final CreditTerminalBlock CREDIT_TERMINAL_BLOCK = Registry.register(BuiltInRegistries.BLOCK, CREDIT_TERMINAL_BLOCK_KEY,
+			new CreditTerminalBlock(BlockBehaviour.Properties.of().setId(CREDIT_TERMINAL_BLOCK_KEY).strength(4.0F)
+					.sound(SoundType.METAL).requiresCorrectToolForDrops()));
+	public static final ResourceKey<Item> CREDIT_TERMINAL_ITEM_KEY = ResourceKey.create(Registries.ITEM, id("credit_terminal"));
+	public static final Item CREDIT_TERMINAL_ITEM = Registry.register(BuiltInRegistries.ITEM, CREDIT_TERMINAL_ITEM_KEY,
+			new BlockItem(CREDIT_TERMINAL_BLOCK, new Item.Properties().setId(CREDIT_TERMINAL_ITEM_KEY)));
+	public static final ResourceKey<BlockEntityType<?>> CREDIT_TERMINAL_BLOCK_ENTITY_KEY = ResourceKey.create(Registries.BLOCK_ENTITY_TYPE, id("credit_terminal"));
+	public static final BlockEntityType<CreditTerminalBlockEntity> CREDIT_TERMINAL_BLOCK_ENTITY = Registry.register(
+			BuiltInRegistries.BLOCK_ENTITY_TYPE, CREDIT_TERMINAL_BLOCK_ENTITY_KEY,
+			new BlockEntityType<>(CreditTerminalBlockEntity::new, Set.of(CREDIT_TERMINAL_BLOCK)));
 
 	@Override
 	public void onInitialize() {
@@ -103,6 +115,8 @@ public final class DigiMinerMod implements ModInitializer {
 			var player = listener.player;
 			removeLegacyDroneCores(player);
 			server.execute(() -> ensureDrone(player));
+			server.execute(() -> ensureCreditTerminal(player));
+			server.execute(() -> CreditAccount.sync(player));
 			unlockAllRecipesSilently(player, server);
 			// Vanilla sends the unlocked recipe book while the player joins. Queue our complete
 			// display catalogue afterwards so that the vanilla packet cannot replace it again.
@@ -113,13 +127,22 @@ public final class DigiMinerMod implements ModInitializer {
 				giveOrDrop(player, new ItemStack(Items.IRON_PICKAXE));
 				player.addTag(starterTag);
 			}
-			String scannerTag = MOD_ID + ".received_iron_scanner";
-			if (!player.isCreative() && !player.isSpectator() && !player.entityTags().contains(scannerTag)) {
-				giveOrDrop(player, new ItemStack(IRON_SCANNER));
-				player.addTag(scannerTag);
-			}
 		});
 		LOGGER.info("Digi Miner Mod wurde initialisiert.");
+	}
+
+	private static void ensureCreditTerminal(net.minecraft.server.level.ServerPlayer owner) {
+		String tag = MOD_ID + ".received_credit_terminal";
+		if (owner.entityTags().contains(tag) || !(owner.level() instanceof net.minecraft.server.level.ServerLevel level)) return;
+		int x = owner.blockPosition().getX() + 3;
+		int z = owner.blockPosition().getZ();
+		int y = level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+		var pos = new net.minecraft.core.BlockPos(x, y, z);
+		for (int i = 0; i < 6 && !level.getBlockState(pos).canBeReplaced(); i++) pos = pos.above();
+		level.setBlock(pos, CREDIT_TERMINAL_BLOCK.defaultBlockState()
+				.setValue(CreditTerminalBlock.FACING, net.minecraft.core.Direction.WEST), 3);
+		if (level.getBlockEntity(pos) instanceof CreditTerminalBlockEntity terminal) terminal.setOwner(owner.getUUID());
+		owner.addTag(tag);
 	}
 
 	public static DroneEntity findDrone(net.minecraft.server.level.ServerPlayer owner) {

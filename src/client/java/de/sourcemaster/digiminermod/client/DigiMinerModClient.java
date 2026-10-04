@@ -13,6 +13,7 @@ import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.BlockEntityRendererRegistry;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
@@ -41,6 +42,11 @@ public final class DigiMinerModClient implements ClientModInitializer {
 		ScannerHud scannerHud = new ScannerHud();
 		HudElementRegistry.addLast(DigiMinerMod.id("spawner_scanner_hud"),
 				(graphics, deltaTracker) -> scannerHud.extract(graphics));
+		ClientPlayNetworking.registerGlobalReceiver(DroneNetworking.CreditPayload.TYPE,
+				(payload, context) -> CreditHud.setBalance(payload.balance()));
+		CreditHud creditHud = new CreditHud();
+		HudElementRegistry.addLast(DigiMinerMod.id("credit_hud"),
+				(graphics, deltaTracker) -> creditHud.extract(graphics));
 	}
 
 	public static void updateControllerFrame(Minecraft client, DeltaTracker deltaTracker) {

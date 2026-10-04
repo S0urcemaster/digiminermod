@@ -48,8 +48,16 @@ public final class DroneNetworking {
 		@Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
 	}
 
+	public record CreditPayload(int balance) implements CustomPacketPayload {
+		public static final Type<CreditPayload> TYPE = new Type<>(DigiMinerMod.id("credit_balance"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, CreditPayload> CODEC = StreamCodec.composite(
+				ByteBufCodecs.VAR_INT, CreditPayload::balance, CreditPayload::new);
+		@Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+	}
+
 	public static void registerServer() {
 		PayloadTypeRegistry.clientboundPlay().register(OpenPayload.TYPE, OpenPayload.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(CreditPayload.TYPE, CreditPayload.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(CommandPayload.TYPE, CommandPayload.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(ProgramPayload.TYPE, ProgramPayload.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(RenamePayload.TYPE, RenamePayload.CODEC);

@@ -6,6 +6,10 @@ Hallo ! Nach diesem Absatz beginnt KI. Ich schreibe hier ganz locker eine Mod f�
 
 Sage, was ich will und committe
 
+### Plot
+
+"Du bist ein dreckiger Minenarbeiter, hast dein ganzes Geld verjubelt und wurdest auf diesen erbärmlichen Planeten geschickt, um ihn restlos auszubeueten ! Tue, was nötig ist, um Kasse zu machen ! Ich meine alles, was nötig ist ! Nur dafür, was am Ende rauspringt, wird man dich wieder unter Deinesgleichen dulden ! Man war sogar so gnädig, dir dafür eine Bergbaueinheit zur Verfügung zu stellen - deshalb: mach dir diesen erbärmlichen Planeten Untertan und schicke verdammt nochmal Geld nach Hause !" - Deine Frau
+
 ### Features
 
 Ein paar Dinge an Vanilla Minecraft finde ich nicht gut und die Controller Unterstützung ist lediglich auf die Maussteuerung aufgesetzt

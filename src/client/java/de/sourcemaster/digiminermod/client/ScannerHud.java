@@ -7,7 +7,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.level.block.entity.SpawnerBlockEntity;
-import net.minecraft.tags.BlockTags;
 
 import java.util.Locale;
 
@@ -15,24 +14,10 @@ public final class ScannerHud {
 	private static final int CHUNK_RADIUS = 12;
 	private long nextScanTime;
 	private BlockPos nearestSpawner;
-	private long nextIronScanTime;
-	private boolean ironNearby;
 
 	public void extract(GuiGraphicsExtractor graphics) {
 		Minecraft minecraft = Minecraft.getInstance();
 		if (minecraft.player == null || minecraft.level == null || minecraft.gui.screen() != null) {
-			return;
-		}
-		boolean holdingIronScanner = minecraft.player.getMainHandItem().is(DigiMinerMod.IRON_SCANNER)
-				|| minecraft.player.getOffhandItem().is(DigiMinerMod.IRON_SCANNER);
-		if (holdingIronScanner) {
-			long now = System.currentTimeMillis();
-			if (now >= this.nextIronScanTime) {
-				this.ironNearby = hasNearbyIron(minecraft);
-				this.nextIronScanTime = now + 250L;
-			}
-			graphics.text(minecraft.font, "Iron Scanner: " + (this.ironNearby ? "Beep" : "None"),
-					8, 8, this.ironNearby ? 0xFFFFB85C : 0xFFB8C4D6, true);
 			return;
 		}
 		if (!minecraft.player.getMainHandItem().is(DigiMinerMod.SPAWNER_SCANNER)
@@ -59,19 +44,6 @@ public final class ScannerHud {
 		graphics.text(minecraft.font, "Spawn: " + direction(player, spawn) + "  " + Math.round(spawnDistance) + " blocks",
 				x, y + 22, 0xFFB8E2FF, true);
 		graphics.text(minecraft.font, "Time: " + clock, x, y + 33, 0xFFFFFFFF, true);
-	}
-
-	private static boolean hasNearbyIron(Minecraft minecraft) {
-		BlockPos origin = minecraft.player.blockPosition();
-		for (int x = -3; x <= 3; x++) {
-			for (int y = -3; y <= 3; y++) {
-				for (int z = -3; z <= 3; z++) {
-					if (x * x + y * y + z * z > 9) continue;
-					if (minecraft.level.getBlockState(origin.offset(x, y, z)).is(BlockTags.IRON_ORES)) return true;
-				}
-			}
-		}
-		return false;
 	}
 
 	private BlockPos findNearestSpawner(Minecraft minecraft) {
