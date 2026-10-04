@@ -10,7 +10,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.WorldlyContainer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;
-import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.entity.BaseContainerBlockEntity;
@@ -20,9 +19,10 @@ import net.minecraft.world.level.storage.ValueOutput;
 
 import java.util.UUID;
 
-public final class CreditTerminalBlockEntity extends BaseContainerBlockEntity implements WorldlyContainer {
-	private static final int[] SLOTS = java.util.stream.IntStream.range(0, 27).toArray();
-	private NonNullList<ItemStack> items = NonNullList.withSize(27, ItemStack.EMPTY);
+public final class CreditTerminalBlockEntity extends BaseContainerBlockEntity implements WorldlyContainer,
+		net.fabricmc.fabric.api.menu.v1.ExtendedMenuProvider<BlockPos> {
+	private static final int[] SLOTS = java.util.stream.IntStream.range(0, 14).toArray();
+	private NonNullList<ItemStack> items = NonNullList.withSize(14, ItemStack.EMPTY);
 	private UUID ownerId;
 
 	public CreditTerminalBlockEntity(BlockPos pos, BlockState state) {
@@ -46,10 +46,11 @@ public final class CreditTerminalBlockEntity extends BaseContainerBlockEntity im
 	}
 
 	@Override protected Component getDefaultName() { return Component.literal("Credit Terminal"); }
-	@Override public int getContainerSize() { return 27; }
+	@Override public int getContainerSize() { return 14; }
 	@Override protected NonNullList<ItemStack> getItems() { return this.items; }
 	@Override protected void setItems(NonNullList<ItemStack> items) { this.items = items; }
-	@Override protected AbstractContainerMenu createMenu(int id, Inventory inventory) { return ChestMenu.threeRows(id, inventory, this); }
+	@Override protected AbstractContainerMenu createMenu(int id, Inventory inventory) { return new CreditTerminalMenu(id, inventory, this, this.worldPosition); }
+	@Override public BlockPos getScreenOpeningData(net.minecraft.server.level.ServerPlayer player) { return this.worldPosition; }
 	@Override public boolean canPlaceItem(int slot, ItemStack stack) { return stack.is(Items.DIAMOND) || stack.is(Items.GOLD_INGOT); }
 	@Override public int[] getSlotsForFace(Direction side) { return SLOTS; }
 	@Override public boolean canPlaceItemThroughFace(int slot, ItemStack stack, Direction side) { return this.canPlaceItem(slot, stack); }

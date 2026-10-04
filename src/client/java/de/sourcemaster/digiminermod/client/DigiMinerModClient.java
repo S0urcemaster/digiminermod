@@ -7,6 +7,7 @@ import de.sourcemaster.digiminermod.client.input.ControllerSupport;
 import de.sourcemaster.digiminermod.client.screen.RadialInventoryScreen;
 import de.sourcemaster.digiminermod.client.screen.RadialCraftingScreen;
 import de.sourcemaster.digiminermod.client.screen.DroneScreen;
+import de.sourcemaster.digiminermod.client.screen.CreditTerminalScreen;
 import de.sourcemaster.digiminermod.drone.DroneNetworking;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry;
@@ -39,6 +40,7 @@ public final class DigiMinerModClient implements ClientModInitializer {
 		EntityRendererRegistry.register(DigiMinerMod.DRONE, DroneRenderer::new);
 		BlockEntityRendererRegistry.register(DigiMinerMod.DRONE_BLOCK_ENTITY, DroneNameRenderer::new);
 		MenuScreens.register(DigiMinerMod.DRONE_MENU, DroneScreen::new);
+		MenuScreens.register(DigiMinerMod.CREDIT_TERMINAL_MENU, CreditTerminalScreen::new);
 		ScannerHud scannerHud = new ScannerHud();
 		HudElementRegistry.addLast(DigiMinerMod.id("spawner_scanner_hud"),
 				(graphics, deltaTracker) -> scannerHud.extract(graphics));
@@ -118,6 +120,7 @@ public final class DigiMinerModClient implements ClientModInitializer {
 			boolean inventoryOpen = client.gui.screen() instanceof RadialInventoryScreen
 					|| client.gui.screen() instanceof RadialCraftingScreen
 					|| client.gui.screen() instanceof DroneScreen
+					|| client.gui.screen() instanceof CreditTerminalScreen
 					|| client.gui.screen() instanceof CreativeModeInventoryScreen
 					|| client.gui.screen() instanceof InventoryScreen;
 			ControllerAction menuAction = inventoryOpen
@@ -125,7 +128,8 @@ public final class DigiMinerModClient implements ClientModInitializer {
 			boolean menuPressed = controller.connected()
 					&& controller.pressed(DigiMinerConfig.get().binding(menuAction));
 			if (menuPressed && !this.previousMenuButton && client.player != null) {
-				if (client.gui.screen() instanceof RadialCraftingScreen || client.gui.screen() instanceof DroneScreen) {
+				if (client.gui.screen() instanceof RadialCraftingScreen || client.gui.screen() instanceof DroneScreen
+						|| client.gui.screen() instanceof CreditTerminalScreen) {
 					client.player.closeContainer();
 				} else if (inventoryOpen) {
 					client.gui.setScreen(null);

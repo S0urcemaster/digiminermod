@@ -9,6 +9,7 @@ import de.sourcemaster.digiminermod.drone.DroneMode;
 import de.sourcemaster.digiminermod.credit.CreditAccount;
 import de.sourcemaster.digiminermod.credit.CreditTerminalBlock;
 import de.sourcemaster.digiminermod.credit.CreditTerminalBlockEntity;
+import de.sourcemaster.digiminermod.credit.CreditTerminalMenu;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
@@ -96,6 +97,9 @@ public final class DigiMinerMod implements ModInitializer {
 	public static final BlockEntityType<CreditTerminalBlockEntity> CREDIT_TERMINAL_BLOCK_ENTITY = Registry.register(
 			BuiltInRegistries.BLOCK_ENTITY_TYPE, CREDIT_TERMINAL_BLOCK_ENTITY_KEY,
 			new BlockEntityType<>(CreditTerminalBlockEntity::new, Set.of(CREDIT_TERMINAL_BLOCK)));
+	public static final ResourceKey<MenuType<?>> CREDIT_TERMINAL_MENU_KEY = ResourceKey.create(Registries.MENU, id("credit_terminal"));
+	public static final MenuType<CreditTerminalMenu> CREDIT_TERMINAL_MENU = Registry.register(BuiltInRegistries.MENU, CREDIT_TERMINAL_MENU_KEY,
+			new ExtendedMenuType<>(CreditTerminalMenu::new, net.minecraft.core.BlockPos.STREAM_CODEC.cast()));
 
 	@Override
 	public void onInitialize() {

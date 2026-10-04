@@ -6,6 +6,7 @@ import de.sourcemaster.digiminermod.client.input.ControllerAction;
 import de.sourcemaster.digiminermod.client.screen.RadialInventoryScreen;
 import de.sourcemaster.digiminermod.client.screen.RadialCraftingScreen;
 import de.sourcemaster.digiminermod.client.screen.DroneScreen;
+import de.sourcemaster.digiminermod.client.screen.CreditTerminalScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.ClientInput;
 import net.minecraft.client.player.KeyboardInput;
@@ -23,7 +24,8 @@ public abstract class KeyboardInputMixin extends ClientInput {
 	private void digiminermod$addControllerMovement(CallbackInfo callbackInfo) {
 		if (Minecraft.getInstance().gui.screen() instanceof RadialInventoryScreen
 				|| Minecraft.getInstance().gui.screen() instanceof RadialCraftingScreen
-				|| Minecraft.getInstance().gui.screen() instanceof DroneScreen) {
+				|| Minecraft.getInstance().gui.screen() instanceof DroneScreen
+				|| Minecraft.getInstance().gui.screen() instanceof CreditTerminalScreen) {
 			this.moveVector = Vec2.ZERO;
 			this.keyPresses = new Input(false, false, false, false, false, false, false);
 			return;
