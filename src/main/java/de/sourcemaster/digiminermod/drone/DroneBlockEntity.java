@@ -42,6 +42,7 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 	private BlockPos previousPosition;
 	private int activeProgram = -1;
 	private int programRemaining;
+	private String droneName = "Digi";
 
 	public DroneBlockEntity(BlockPos pos, BlockState state) {
 		super(DigiMinerMod.DRONE_BLOCK_ENTITY, pos, state);
@@ -165,6 +166,7 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 			moved.facing = this.facing;
 			moved.activeProgram = this.activeProgram;
 			moved.programRemaining = this.programRemaining;
+			moved.setDroneName(this.droneName);
 			moved.previousPosition = this.worldPosition;
 			moved.setChanged();
 			moved.rememberPosition();
@@ -214,6 +216,13 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 	public void setMode(DroneMode mode) { this.mode = mode; this.setChanged(); }
 	public SimpleContainer getInventory() { return this.inventory; }
 	public SimpleContainer getEquipmentInventory() { return this.equipmentInventory; }
+	public String getDroneName() { return this.droneName; }
+	public void setDroneName(String name) {
+		String cleaned = name == null ? "" : name.replaceAll("[^A-Za-z0-9_]", "");
+		this.droneName = cleaned.substring(0, Math.min(16, cleaned.length()));
+		this.setChanged();
+		if (this.level != null) this.level.sendBlockUpdated(this.worldPosition, this.getBlockState(), this.getBlockState(), 3);
+	}
 	private void updateLightState() {
 		this.setChanged();
 		if (this.level == null) return;
@@ -236,6 +245,7 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		output.putInt("Facing", this.facing.get2DDataValue());
 		output.putInt("ActiveProgram", this.activeProgram);
 		output.putInt("ProgramRemaining", this.programRemaining);
+		output.putString("DroneName", this.droneName);
 		this.inventory.storeAsItemList(output.list("Inventory", ItemStack.CODEC));
 		if (!this.equipmentInventory.getItem(0).isEmpty()) output.store("Tool", ItemStack.CODEC, this.equipmentInventory.getItem(0));
 		if (!this.equipmentInventory.getItem(1).isEmpty()) output.store("ProgramDrive", ItemStack.CODEC, this.equipmentInventory.getItem(1));
@@ -249,6 +259,7 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		this.facing = Direction.from2DDataValue(input.getIntOr("Facing", Direction.NORTH.get2DDataValue()));
 		this.activeProgram = input.getIntOr("ActiveProgram", -1);
 		this.programRemaining = input.getIntOr("ProgramRemaining", 0);
+		this.droneName = input.getStringOr("DroneName", "Digi");
 		this.inventory.fromItemList(input.listOrEmpty("Inventory", ItemStack.CODEC));
 		this.equipmentInventory.setItem(0, input.read("Tool", ItemStack.CODEC).orElseGet(() -> new ItemStack(DigiMinerMod.DRONE_LIGHT)));
 		ItemStack oldDrive = input.read("ProgramDrive", ItemStack.CODEC).orElse(ItemStack.EMPTY);
@@ -257,6 +268,13 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 				: oldDrive.isEmpty() ? new ItemStack(DigiMinerMod.BASIC_BUILD_CARTRIDGE) : oldDrive);
 		this.equipmentInventory.setItem(2, input.read("ExcavateCartridge", ItemStack.CODEC)
 				.orElseGet(() -> new ItemStack(DigiMinerMod.BASIC_EXCAVATE_CARTRIDGE)));
+	}
+
+	@Override public net.minecraft.network.protocol.Packet<net.minecraft.network.protocol.game.ClientGamePacketListener> getUpdatePacket() {
+		return net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket.create(this);
+	}
+	@Override public net.minecraft.nbt.CompoundTag getUpdateTag(net.minecraft.core.HolderLookup.Provider provider) {
+		return this.saveCustomOnly(provider);
 	}
 
 	private record PathNode(BlockPos pos, double cost, double score, BlockPos firstStep) {}

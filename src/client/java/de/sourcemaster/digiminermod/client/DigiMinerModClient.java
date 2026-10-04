@@ -10,6 +10,7 @@ import de.sourcemaster.digiminermod.client.screen.DroneScreen;
 import de.sourcemaster.digiminermod.drone.DroneNetworking;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry;
+import net.fabricmc.fabric.api.client.rendering.v1.BlockEntityRendererRegistry;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.minecraft.client.DeltaTracker;
@@ -35,6 +36,7 @@ public final class DigiMinerModClient implements ClientModInitializer {
 	public void onInitializeClient() {
 		instance = this;
 		EntityRendererRegistry.register(DigiMinerMod.DRONE, DroneRenderer::new);
+		BlockEntityRendererRegistry.register(DigiMinerMod.DRONE_BLOCK_ENTITY, DroneNameRenderer::new);
 		MenuScreens.register(DigiMinerMod.DRONE_MENU, DroneScreen::new);
 		ScannerHud scannerHud = new ScannerHud();
 		HudElementRegistry.addLast(DigiMinerMod.id("spawner_scanner_hud"),

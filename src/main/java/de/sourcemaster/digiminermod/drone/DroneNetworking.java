@@ -39,10 +39,20 @@ public final class DroneNetworking {
 		@Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
 	}
 
+	public record RenamePayload(long blockPos, String name) implements CustomPacketPayload {
+		public static final Type<RenamePayload> TYPE = new Type<>(DigiMinerMod.id("rename_drone"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, RenamePayload> CODEC = StreamCodec.composite(
+				ByteBufCodecs.LONG, RenamePayload::blockPos,
+				ByteBufCodecs.stringUtf8(16), RenamePayload::name,
+				RenamePayload::new);
+		@Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+	}
+
 	public static void registerServer() {
 		PayloadTypeRegistry.clientboundPlay().register(OpenPayload.TYPE, OpenPayload.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(CommandPayload.TYPE, CommandPayload.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(ProgramPayload.TYPE, ProgramPayload.CODEC);
+		PayloadTypeRegistry.serverboundPlay().register(RenamePayload.TYPE, RenamePayload.CODEC);
 		ServerPlayNetworking.registerGlobalReceiver(CommandPayload.TYPE, (payload, context) -> {
 			var pos = net.minecraft.core.BlockPos.of(payload.blockPos());
 			if (!(context.player().level().getBlockEntity(pos) instanceof DroneBlockEntity drone)
@@ -57,6 +67,12 @@ public final class DroneNetworking {
 			if (!(context.player().level().getBlockEntity(pos) instanceof DroneBlockEntity drone)
 					|| !drone.isOwner(context.player()) || !pos.closerToCenterThan(context.player().position(), 16.0)) return;
 			drone.startProgram(payload.program(), payload.parameterOne(), payload.parameterTwo());
+		});
+		ServerPlayNetworking.registerGlobalReceiver(RenamePayload.TYPE, (payload, context) -> {
+			var pos = net.minecraft.core.BlockPos.of(payload.blockPos());
+			if (!(context.player().level().getBlockEntity(pos) instanceof DroneBlockEntity drone)
+					|| !drone.isOwner(context.player()) || !pos.closerToCenterThan(context.player().position(), 16.0)) return;
+			drone.setDroneName(payload.name());
 		});
 	}
 
