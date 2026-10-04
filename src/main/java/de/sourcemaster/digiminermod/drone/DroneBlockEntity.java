@@ -445,9 +445,9 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		}
 	}
 
-	public void pushFromHit(Direction hitFace) {
+	public void pushFromHit(Direction hitFace, boolean pulling) {
 		if (!(this.level instanceof ServerLevel serverLevel)) return;
-		Direction movement = hitFace.getOpposite();
+		Direction movement = pulling ? hitFace : hitFace.getOpposite();
 		if (movement.getAxis().isHorizontal()) this.facing = movement;
 		BlockPos target = this.worldPosition.relative(movement);
 		if (serverLevel.getBlockState(target).canBeReplaced()) this.moveTo(serverLevel, target);
