@@ -7,6 +7,7 @@ public enum ControllerAction {
 	WORLD_SNEAK("World: Sneak", ControllerButton.B),
 	WORLD_SPRINT("World: Sprint", ControllerButton.Y),
 	WORLD_CHANGE_PERSPECTIVE("World: Change perspective", ControllerButton.DPAD_UP),
+	GAME_MENU("Game: Toggle menu", ControllerButton.MENU),
 	OPEN_INVENTORY("World: Open inventory", ControllerButton.VIEW),
 	INVENTORY_TRANSFER_HOTBAR("Inventory: Transfer hotbar", ControllerButton.DPAD_DOWN),
 	INVENTORY_TRANSFER_SECONDARY("Inventory: Transfer secondary", ControllerButton.A),

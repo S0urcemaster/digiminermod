@@ -44,7 +44,13 @@ public final class CreditTerminalBlock extends BaseEntityBlock {
 
 	@Override protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
 		if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer
-				&& level.getBlockEntity(pos) instanceof CreditTerminalBlockEntity terminal) serverPlayer.openMenu(terminal);
+				&& level.getBlockEntity(pos) instanceof CreditTerminalBlockEntity terminal) {
+			// Development/offline player UUIDs may change between launches. Opening
+			// the terminal also establishes who receives subsequent hopper sales.
+			terminal.setOwner(serverPlayer.getUUID());
+			CreditAccount.sync(serverPlayer);
+			serverPlayer.openMenu(terminal);
+		}
 		return InteractionResult.SUCCESS;
 	}
 

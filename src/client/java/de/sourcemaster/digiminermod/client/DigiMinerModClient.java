@@ -8,22 +8,31 @@ import de.sourcemaster.digiminermod.client.screen.RadialInventoryScreen;
 import de.sourcemaster.digiminermod.client.screen.RadialCraftingScreen;
 import de.sourcemaster.digiminermod.client.screen.DroneScreen;
 import de.sourcemaster.digiminermod.client.screen.CreditTerminalScreen;
+import de.sourcemaster.digiminermod.client.screen.RadialStorageScreen;
 import de.sourcemaster.digiminermod.drone.DroneNetworking;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.BlockEntityRendererRegistry;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
+import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
+import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.ChestMenu;
+import net.minecraft.world.inventory.DispenserMenu;
+import net.minecraft.world.inventory.HopperMenu;
+import net.minecraft.world.inventory.ShulkerBoxMenu;
+import net.minecraft.client.gui.screens.inventory.MenuAccess;
 
 public final class DigiMinerModClient implements ClientModInitializer {
 	private static DigiMinerModClient instance;
 	private boolean previousMenuButton;
+	private boolean previousGameMenuButton;
 	private double lookVelocityHorizontal;
 	private double lookVelocityVertical;
 	private boolean controllerAttack;
@@ -41,6 +50,21 @@ public final class DigiMinerModClient implements ClientModInitializer {
 		BlockEntityRendererRegistry.register(DigiMinerMod.DRONE_BLOCK_ENTITY, DroneNameRenderer::new);
 		MenuScreens.register(DigiMinerMod.DRONE_MENU, DroneScreen::new);
 		MenuScreens.register(DigiMinerMod.CREDIT_TERMINAL_MENU, CreditTerminalScreen::new);
+		ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
+			if (screen instanceof RadialStorageScreen<?> || !(screen instanceof MenuAccess<?> access)
+					|| client.player == null) return;
+			Object menu = access.getMenu();
+			if (menu instanceof ChestMenu chest) {
+				client.gui.setScreen(new RadialStorageScreen<>(chest, client.player.getInventory(), screen.getTitle(),
+						chest.getRowCount() * 9));
+			} else if (menu instanceof DispenserMenu dispenser) {
+				client.gui.setScreen(new RadialStorageScreen<>(dispenser, client.player.getInventory(), screen.getTitle(), 9));
+			} else if (menu instanceof HopperMenu hopper) {
+				client.gui.setScreen(new RadialStorageScreen<>(hopper, client.player.getInventory(), screen.getTitle(), 5));
+			} else if (menu instanceof ShulkerBoxMenu shulker) {
+				client.gui.setScreen(new RadialStorageScreen<>(shulker, client.player.getInventory(), screen.getTitle(), 27));
+			}
+		});
 		ScannerHud scannerHud = new ScannerHud();
 		HudElementRegistry.addLast(DigiMinerMod.id("spawner_scanner_hud"),
 				(graphics, deltaTracker) -> scannerHud.extract(graphics));
@@ -121,6 +145,7 @@ public final class DigiMinerModClient implements ClientModInitializer {
 					|| client.gui.screen() instanceof RadialCraftingScreen
 					|| client.gui.screen() instanceof DroneScreen
 					|| client.gui.screen() instanceof CreditTerminalScreen
+					|| client.gui.screen() instanceof RadialStorageScreen<?>
 					|| client.gui.screen() instanceof CreativeModeInventoryScreen
 					|| client.gui.screen() instanceof InventoryScreen;
 			ControllerAction menuAction = inventoryOpen
@@ -129,7 +154,8 @@ public final class DigiMinerModClient implements ClientModInitializer {
 					&& controller.pressed(DigiMinerConfig.get().binding(menuAction));
 			if (menuPressed && !this.previousMenuButton && client.player != null) {
 				if (client.gui.screen() instanceof RadialCraftingScreen || client.gui.screen() instanceof DroneScreen
-						|| client.gui.screen() instanceof CreditTerminalScreen) {
+						|| client.gui.screen() instanceof CreditTerminalScreen
+						|| client.gui.screen() instanceof RadialStorageScreen<?>) {
 					client.player.closeContainer();
 				} else if (inventoryOpen) {
 					client.gui.setScreen(null);
@@ -139,6 +165,25 @@ public final class DigiMinerModClient implements ClientModInitializer {
 				}
 			}
 			this.previousMenuButton = menuPressed;
+
+			boolean gameMenuPressed = controller.connected()
+					&& controller.pressed(DigiMinerConfig.get().binding(ControllerAction.GAME_MENU));
+			if (gameMenuPressed && !this.previousGameMenuButton) {
+				if (inventoryOpen && client.player != null) {
+					if (client.gui.screen() instanceof RadialCraftingScreen || client.gui.screen() instanceof DroneScreen
+							|| client.gui.screen() instanceof CreditTerminalScreen
+							|| client.gui.screen() instanceof RadialStorageScreen<?>) {
+						client.player.closeContainer();
+					} else {
+						client.gui.setScreen(null);
+					}
+				} else if (client.gui.screen() instanceof PauseScreen) {
+					client.gui.setScreen(null);
+				} else if (client.gui.screen() == null && client.player != null) {
+					client.pauseGame(false);
+				}
+			}
+			this.previousGameMenuButton = gameMenuPressed;
 	}
 
 	private static double approach(double current, double target, double maximumChange) {
