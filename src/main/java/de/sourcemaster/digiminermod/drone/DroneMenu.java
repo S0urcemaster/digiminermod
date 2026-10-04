@@ -17,6 +17,7 @@ public final class DroneMenu extends AbstractContainerMenu {
 	public static final int PLAYER_MAIN_START = 27;
 	public static final int HOTBAR_START = 54;
 	public static final int TOOL_SLOT = 63;
+	public static final int PROGRAM_DRIVE_SLOT = 64;
 	private final Container droneInventory;
 	private final Container toolInventory;
 	private final BlockPos dronePos;
@@ -24,11 +25,11 @@ public final class DroneMenu extends AbstractContainerMenu {
 	private final ContainerData data;
 
 	public DroneMenu(int containerId, Inventory playerInventory, BlockPos pos) {
-		this(containerId, playerInventory, new SimpleContainer(DRONE_SLOTS), new SimpleContainer(1), pos, null, new SimpleContainerData(1));
+		this(containerId, playerInventory, new SimpleContainer(DRONE_SLOTS), new SimpleContainer(2), pos, null, new SimpleContainerData(1));
 	}
 
 	public DroneMenu(int containerId, Inventory playerInventory, DroneBlockEntity drone) {
-		this(containerId, playerInventory, drone.getInventory(), drone.getToolInventory(), drone.getBlockPos(), drone, new ContainerData() {
+		this(containerId, playerInventory, drone.getInventory(), drone.getEquipmentInventory(), drone.getBlockPos(), drone, new ContainerData() {
 			@Override public int get(int index) { return drone.getMode().ordinal(); }
 			@Override public void set(int index, int value) { drone.setMode(DroneMode.byId(value)); }
 			@Override public int getCount() { return 1; }
@@ -56,6 +57,10 @@ public final class DroneMenu extends AbstractContainerMenu {
 			}
 			@Override public int getMaxStackSize() { return 1; }
 		});
+		this.addSlot(new Slot(toolInventory, 1, 0, 0) {
+			@Override public boolean mayPlace(ItemStack stack) { return stack.is(DigiMinerMod.BASIC_PROGRAM_DRIVE); }
+			@Override public int getMaxStackSize() { return 1; }
+		});
 		this.addDataSlots(data);
 	}
 
@@ -69,11 +74,12 @@ public final class DroneMenu extends AbstractContainerMenu {
 		if (!slot.hasItem()) return result;
 		ItemStack stack = slot.getItem();
 		result = stack.copy();
-		if (index < DRONE_SLOTS || index == TOOL_SLOT) {
+		if (index < DRONE_SLOTS || index == TOOL_SLOT || index == PROGRAM_DRIVE_SLOT) {
 			if (!this.moveItemStackTo(stack, PLAYER_MAIN_START, TOOL_SLOT, true)) return ItemStack.EMPTY;
 		} else {
-			boolean moved = this.slots.get(TOOL_SLOT).mayPlace(stack)
-					&& this.moveItemStackTo(stack, TOOL_SLOT, TOOL_SLOT + 1, false);
+			int equipmentSlot = this.slots.get(PROGRAM_DRIVE_SLOT).mayPlace(stack) ? PROGRAM_DRIVE_SLOT : TOOL_SLOT;
+			boolean moved = this.slots.get(equipmentSlot).mayPlace(stack)
+					&& this.moveItemStackTo(stack, equipmentSlot, equipmentSlot + 1, false);
 			if (!moved && !this.moveItemStackTo(stack, 0, DRONE_SLOTS, false)) return ItemStack.EMPTY;
 		}
 		if (stack.isEmpty()) slot.setByPlayer(ItemStack.EMPTY); else slot.setChanged();

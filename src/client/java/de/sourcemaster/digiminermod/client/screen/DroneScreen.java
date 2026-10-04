@@ -1,5 +1,6 @@
 package de.sourcemaster.digiminermod.client.screen;
 
+import de.sourcemaster.digiminermod.DigiMinerMod;
 import de.sourcemaster.digiminermod.client.config.DigiMinerConfig;
 import de.sourcemaster.digiminermod.client.input.ControllerAction;
 import de.sourcemaster.digiminermod.client.input.ControllerSupport;
@@ -42,10 +43,11 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 	@Override public void tick() {
 		this.mode = this.menu.mode();
 		boolean programPage = this.leftPage == 3 && (this.mode == 2 || this.mode == 3);
+		boolean basicPrograms = this.hasBasicProgramDrive();
 		if (this.parameterOne != null) {
-			this.parameterOne.setVisible(programPage && this.mode == 2);
-			this.parameterOne.setFocused(programPage && this.mode == 2);
-			if (programPage && this.mode == 2 && this.getFocused() != this.parameterOne) this.setFocused(this.parameterOne);
+			this.parameterOne.setVisible(programPage && this.mode == 2 && basicPrograms);
+			this.parameterOne.setFocused(programPage && this.mode == 2 && basicPrograms);
+			if (programPage && this.mode == 2 && basicPrograms && this.getFocused() != this.parameterOne) this.setFocused(this.parameterOne);
 		}
 		ControllerSupport.Snapshot pad = ControllerSupport.poll();
 		if (!pad.connected()) return;
@@ -85,7 +87,7 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 		}
 		else if (x * x + y * y >= 0.25F) {
 			this.focus = Focus.DRONE;
-			int count = this.mode == 2 ? BUILD_PROGRAMS.length : 1;
+			int count = this.mode == 1 ? 2 : this.mode == 2 ? BUILD_PROGRAMS.length : 1;
 			this.optionCursor = Math.max(0, Math.min(count - 1, Math.round((y + 1) * 0.5F * (count - 1))));
 		}
 	}
@@ -106,23 +108,28 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 			this.mode = this.optionCursor; ClientPlayNetworking.send(new DroneNetworking.CommandPayload(this.menu.dronePos().asLong(), this.mode)); return;
 		}
 		if (this.leftPage == 3 && this.focus != Focus.HOTBAR) {
-			if (this.mode == 2) {
+			if (this.mode == 2 && this.hasBasicProgramDrive()) {
 				ClientPlayNetworking.send(new DroneNetworking.ProgramPayload(this.menu.dronePos().asLong(), this.optionCursor,
 						this.parameterValue(this.parameterOne), 0));
 				return;
 			}
-			if (this.mode == 3) return;
+			if (this.mode != 1) return;
 			int inventory = this.inventorySlot();
+			int equipmentSlot = this.optionCursor == 1 ? DroneMenu.PROGRAM_DRIVE_SLOT : DroneMenu.TOOL_SLOT;
 			boolean fromTool = this.focus == Focus.DRONE
-					? !this.menu.getSlot(DroneMenu.TOOL_SLOT).getItem().isEmpty()
+					? !this.menu.getSlot(equipmentSlot).getItem().isEmpty()
 					: this.menu.getSlot(inventory).getItem().isEmpty();
-			this.moveOne(DroneMenu.TOOL_SLOT, inventory, fromTool);
+			this.moveOne(equipmentSlot, inventory, fromTool);
 			return;
 		}
 		if (this.focus == Focus.HOTBAR) return;
 		int drone = this.droneSlot(), inventory = this.inventorySlot();
 		boolean fromDrone = this.focus == Focus.DRONE ? !this.menu.getSlot(drone).getItem().isEmpty() : this.menu.getSlot(inventory).getItem().isEmpty();
 		this.moveOne(drone, inventory, fromDrone);
+	}
+
+	private boolean hasBasicProgramDrive() {
+		return this.menu.getSlot(DroneMenu.PROGRAM_DRIVE_SLOT).getItem().is(DigiMinerMod.BASIC_PROGRAM_DRIVE);
 	}
 
 	private int parameterValue(EditBox field) {
@@ -186,14 +193,21 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 	private void options(GuiGraphicsExtractor graphics, int cx, int cy) {
 		if (this.leftPage == 3) {
 			if (this.mode == 1) {
+				int top = cy - 30;
 				ItemStack tool = this.menu.getSlot(DroneMenu.TOOL_SLOT).getItem();
-				this.slot(graphics, tool, cx - 10, cy - 10, true, this.focus == Focus.DRONE);
-				this.extractDetails(graphics, tool, cx, cy + 42, "4/4", this.focus == Focus.DRONE);
+				ItemStack drive = this.menu.getSlot(DroneMenu.PROGRAM_DRIVE_SLOT).getItem();
+				this.slot(graphics, tool, cx - 48, top, this.optionCursor == 0, this.focus == Focus.DRONE);
+				graphics.text(this.font, "Tool", cx - 22, top + 6, 0xFFFFFFFF, false);
+				this.slot(graphics, drive, cx - 48, top + 27, this.optionCursor == 1, this.focus == Focus.DRONE);
+				graphics.text(this.font, "Program Drive", cx - 22, top + 33, 0xFFFFFFFF, false);
+				graphics.centeredText(this.font, "4/4", cx, cy + 51, 0xFF9AA4B2);
 			} else if (this.mode == 2) {
-				graphics.fill(cx - 55, cy - 35, cx + 55, cy - 13, 0xDD28313D);
-				graphics.outline(cx - 55, cy - 35, 110, 22, this.focus == Focus.DRONE ? 0xFFF4D35E : 0xFF65CFFF);
-				graphics.centeredText(this.font, BUILD_PROGRAMS[this.optionCursor], cx, cy - 28, 0xFFFFFFFF);
-				graphics.centeredText(this.font, "Blocks", cx, cy + 10, 0xFFB8C4D6);
+				if (this.hasBasicProgramDrive()) {
+					graphics.fill(cx - 55, cy - 35, cx + 55, cy - 13, 0xDD28313D);
+					graphics.outline(cx - 55, cy - 35, 110, 22, this.focus == Focus.DRONE ? 0xFFF4D35E : 0xFF65CFFF);
+					graphics.centeredText(this.font, BUILD_PROGRAMS[this.optionCursor], cx, cy - 28, 0xFFFFFFFF);
+					graphics.centeredText(this.font, "Blocks", cx, cy + 10, 0xFFB8C4D6);
+				} else graphics.centeredText(this.font, "No program drive", cx, cy - 5, 0xFFB8C4D6);
 				graphics.centeredText(this.font, "4/4", cx, cy + 51, 0xFF9AA4B2);
 			} else if (this.mode == 3) {
 				graphics.centeredText(this.font, "No excavation programs yet", cx, cy - 5, 0xFFB8C4D6);

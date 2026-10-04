@@ -5,6 +5,7 @@
   "item.digiminermod.drone_light": "Drohnenleuchte",
   "item.digiminermod.drone_drill": "Drohnenbohrer",
   "item.digiminermod.drone_builder": "Drohnen-Bauwerkzeug",
+  "item.digiminermod.basic_program_drive": "Basis-Programmdatenträger",
   "entity.digiminermod.drone": "Drohne"
   ,"block.digiminermod.drone": "Drohne"
 }

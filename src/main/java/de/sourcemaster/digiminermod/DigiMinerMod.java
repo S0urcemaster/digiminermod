@@ -61,6 +61,9 @@ public final class DigiMinerMod implements ModInitializer {
 	public static final ResourceKey<Item> DRONE_BUILDER_KEY = ResourceKey.create(Registries.ITEM, id("drone_builder"));
 	public static final Item DRONE_BUILDER = Registry.register(BuiltInRegistries.ITEM, DRONE_BUILDER_KEY,
 			new Item(new Item.Properties().setId(DRONE_BUILDER_KEY).stacksTo(1)));
+	public static final ResourceKey<Item> BASIC_PROGRAM_DRIVE_KEY = ResourceKey.create(Registries.ITEM, id("basic_program_drive"));
+	public static final Item BASIC_PROGRAM_DRIVE = Registry.register(BuiltInRegistries.ITEM, BASIC_PROGRAM_DRIVE_KEY,
+			new Item(new Item.Properties().setId(BASIC_PROGRAM_DRIVE_KEY).stacksTo(1)));
 	public static final ResourceKey<Block> DRONE_BLOCK_KEY = ResourceKey.create(Registries.BLOCK, id("drone"));
 	public static final DroneBlock DRONE_BLOCK = Registry.register(BuiltInRegistries.BLOCK, DRONE_BLOCK_KEY,
 			new DroneBlock(BlockBehaviour.Properties.of().setId(DRONE_BLOCK_KEY).strength(-1.0F, 3600000.0F)
