@@ -53,13 +53,28 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 
 	public static void serverTick(net.minecraft.world.level.Level ignored, BlockPos pos, BlockState state, DroneBlockEntity drone) {
 		if (!(drone.level instanceof ServerLevel level) || drone.ownerId == null || level.getGameTime() % 4 != 0) return;
+		ServerPlayer owner = level.getServer().getPlayerList().getPlayer(drone.ownerId);
+		if (owner != null && owner.level() == level && level.getGameTime() % 20 == 0) {
+			boolean scannerActive = drone.equipmentInventory.getItem(0).is(DigiMinerMod.BASIC_SCANNER_CARTRIDGE);
+			if (scannerActive) {
+				boolean ironNearby = false;
+				for (BlockPos scan : BlockPos.betweenClosed(pos.offset(-3, -3, -3), pos.offset(3, 3, 3))) {
+					if (scan.distManhattan(pos) <= 3 && (level.getBlockState(scan).is(net.minecraft.world.level.block.Blocks.IRON_ORE)
+							|| level.getBlockState(scan).is(net.minecraft.world.level.block.Blocks.DEEPSLATE_IRON_ORE))) {
+						ironNearby = true;
+						break;
+					}
+				}
+				net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(owner,
+						new DroneNetworking.ScannerPayload(pos.asLong(), ironNearby));
+			}
+		}
 		if (state.getValue(DroneBlock.LIT)) level.setBlock(pos, state.setValue(DroneBlock.LIT, false), 3);
 		if (drone.activeProgram >= 0) {
 			drone.runProgramStep(level);
 			return;
 		}
 		if (drone.menuOpen || drone.mode != DroneMode.FOLLOW) return;
-		ServerPlayer owner = level.getServer().getPlayerList().getPlayer(drone.ownerId);
 		if (owner == null || owner.level() != level) return;
 		BlockPos destination = owner.blockPosition().above();
 		int tetherLength = chebyshevDistance(pos, destination);
