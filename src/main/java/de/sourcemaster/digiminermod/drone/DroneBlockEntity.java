@@ -470,6 +470,45 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		return level.getBlockState(pos).canBeReplaced() && level.getFluidState(pos).isEmpty();
 	}
 
+	public void teleportNear(ServerPlayer owner) {
+		if (!(this.level instanceof ServerLevel oldLevel) || this.mode != DroneMode.FOLLOW || owner.isInWater()) return;
+		ServerLevel targetLevel = owner.level();
+		BlockPos origin = owner.blockPosition();
+		BlockPos preferred = origin.relative(owner.getDirection().getOpposite(), 3).above();
+		BlockPos target = null;
+		if (isSafeTeleportTarget(targetLevel, preferred, owner)) {
+			target = preferred;
+		} else {
+			for (int dy = 0; dy <= 3 && target == null; dy++) {
+				for (int radius = 2; radius <= 4 && target == null; radius++) {
+					for (int dx = -radius; dx <= radius && target == null; dx++) {
+						for (int dz = -radius; dz <= radius; dz++) {
+							if (Math.max(Math.abs(dx), Math.abs(dz)) != radius) continue;
+							BlockPos candidate = origin.offset(dx, dy, dz);
+							if (isSafeTeleportTarget(targetLevel, candidate, owner)) { target = candidate; break; }
+						}
+					}
+				}
+			}
+		}
+		if (target == null || !targetLevel.setBlock(target, DigiMinerMod.DRONE_BLOCK.defaultBlockState()
+				.setValue(DroneBlock.FACING, this.facing).setValue(DroneBlock.LIT, true), 3)) return;
+		if (!(targetLevel.getBlockEntity(target) instanceof DroneBlockEntity moved)) {
+			targetLevel.setBlock(target, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
+			return;
+		}
+		moved.restore(this.ownerId, DroneMode.FOLLOW, this.copyInventory(),
+				this.equipmentInventory.getItem(0), this.equipmentInventory.getItem(1), this.equipmentInventory.getItem(2));
+		moved.facing = this.facing;
+		moved.setDroneName(this.droneName);
+		oldLevel.setBlock(this.worldPosition, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
+	}
+
+	private static boolean isSafeTeleportTarget(ServerLevel level, BlockPos pos, ServerPlayer owner) {
+		return isDryMovementTarget(level, pos)
+				&& !new net.minecraft.world.phys.AABB(pos).intersects(owner.getBoundingBox());
+	}
+
 	public void restore(UUID owner, DroneMode mode, List<ItemStack> stacks) {
 		this.restore(owner, mode, stacks, new ItemStack(DigiMinerMod.BASIC_SCANNER_CARTRIDGE),
 				new ItemStack(DigiMinerMod.BASIC_BUILD_CARTRIDGE), new ItemStack(DigiMinerMod.BASIC_EXCAVATE_CARTRIDGE));

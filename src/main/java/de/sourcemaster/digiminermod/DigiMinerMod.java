@@ -15,6 +15,7 @@ import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.event.player.AttackBlockCallback;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.core.Registry;
@@ -136,7 +137,38 @@ public final class DigiMinerMod implements ModInitializer {
 				player.addTag(starterTag);
 			}
 		});
+		ServerTickEvents.END_SERVER_TICK.register(server -> {
+			if (server.overworld().getGameTime() % 20 != 0) return;
+			for (var player : server.getPlayerList().getPlayers()) recallDistantDrone(player);
+		});
 		LOGGER.info("Digi Miner Mod wurde initialisiert.");
+	}
+
+	private static void recallDistantDrone(net.minecraft.server.level.ServerPlayer owner) {
+		if (owner.isSpectator() || owner.isInWater()) return;
+		for (String tag : owner.entityTags()) {
+			if (!tag.startsWith(DRONE_LOCATION_TAG)) continue;
+			try {
+				String[] parts = tag.substring(DRONE_LOCATION_TAG.length()).split("\\|");
+				if (parts.length != 4) continue;
+				var dimension = ResourceKey.create(Registries.DIMENSION, Identifier.parse(parts[0]));
+				var pos = new net.minecraft.core.BlockPos(Integer.parseInt(parts[1]), Integer.parseInt(parts[2]), Integer.parseInt(parts[3]));
+				if (owner.level().dimension().equals(dimension)
+						&& Math.max(Math.abs(owner.blockPosition().getX() - pos.getX()),
+						Math.max(Math.abs(owner.blockPosition().getY() - pos.getY()),
+								Math.abs(owner.blockPosition().getZ() - pos.getZ()))) <= 10) return;
+				var droneLevel = owner.level().getServer().getLevel(dimension);
+				if (droneLevel == null) return;
+				droneLevel.getChunkAt(pos);
+				if (droneLevel.getBlockEntity(pos) instanceof DroneBlockEntity drone
+						&& drone.isOwner(owner) && drone.getMode() == DroneMode.FOLLOW) {
+					drone.teleportNear(owner);
+				}
+			} catch (RuntimeException ignored) {
+				// A malformed or stale location will be repaired by the normal join recovery.
+			}
+			return;
+		}
 	}
 
 	private static void ensureCreditTerminal(net.minecraft.server.level.ServerPlayer owner) {
