@@ -1,5 +1,12 @@
 {
   "variants": {
-    "": { "model": "digiminermod:block/drone" }
+    "facing=north,lit=false": { "model": "digiminermod:block/drone" },
+    "facing=north,lit=true": { "model": "digiminermod:block/drone" },
+    "facing=east,lit=false": { "model": "digiminermod:block/drone", "y": 90 },
+    "facing=east,lit=true": { "model": "digiminermod:block/drone", "y": 90 },
+    "facing=south,lit=false": { "model": "digiminermod:block/drone", "y": 180 },
+    "facing=south,lit=true": { "model": "digiminermod:block/drone", "y": 180 },
+    "facing=west,lit=false": { "model": "digiminermod:block/drone", "y": 270 },
+    "facing=west,lit=true": { "model": "digiminermod:block/drone", "y": 270 }
   }
 }

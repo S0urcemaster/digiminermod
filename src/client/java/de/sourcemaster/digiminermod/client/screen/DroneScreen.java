@@ -4,7 +4,6 @@ import de.sourcemaster.digiminermod.client.config.DigiMinerConfig;
 import de.sourcemaster.digiminermod.client.input.ControllerAction;
 import de.sourcemaster.digiminermod.client.input.ControllerSupport;
 import de.sourcemaster.digiminermod.drone.DroneMenu;
-import de.sourcemaster.digiminermod.drone.DroneMode;
 import de.sourcemaster.digiminermod.drone.DroneNetworking;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -18,7 +17,6 @@ import net.minecraft.client.gui.screens.inventory.MenuAccess;
 public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 	private static final int PAGE_SIZE = 14, SLOT_SIZE = 20;
 	private static final String[] MODES = {"Follow", "Static", "Automatic", "Upgrade"};
-	private static final String[] MOVES = {"Forward", "Backward", "Up", "Down", "Turn left", "Turn right"};
 	private enum Focus { DRONE, INVENTORY, HOTBAR }
 	private final DroneMenu menu;
 	private Focus focus = Focus.DRONE;
@@ -61,12 +59,13 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 			this.focus = Focus.DRONE;
 			this.droneCursor = radialIndex(x, y, this.leftPage == 0 ? 14 : 13);
 		}
-		else {
+		else if (this.leftPage == 2) {
 			if (Math.abs(y) < 0.25F) return;
 			this.focus = Focus.DRONE;
-			int count = this.leftPage == 2 ? MODES.length : this.mode == DroneMode.STATIC.ordinal() ? MOVES.length : 1;
+			int count = MODES.length;
 			this.optionCursor = Math.max(0, Math.min(count - 1, Math.round((y + 1) * 0.5F * (count - 1))));
 		}
+		else if (x * x + y * y >= 0.25F) this.focus = Focus.DRONE;
 	}
 
 	private void updateRight(float x, float y) {
@@ -84,8 +83,12 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 		if (this.focus == Focus.DRONE && this.leftPage == 2) {
 			this.mode = this.optionCursor; ClientPlayNetworking.send(new DroneNetworking.CommandPayload(this.menu.dronePos().asLong(), this.mode)); return;
 		}
-		if (this.focus == Focus.DRONE && this.leftPage == 3) {
-			if (this.mode == DroneMode.STATIC.ordinal()) ClientPlayNetworking.send(new DroneNetworking.CommandPayload(this.menu.dronePos().asLong(), 4 + this.optionCursor));
+		if (this.leftPage == 3 && this.focus != Focus.HOTBAR) {
+			int inventory = this.inventorySlot();
+			boolean fromTool = this.focus == Focus.DRONE
+					? !this.menu.getSlot(DroneMenu.TOOL_SLOT).getItem().isEmpty()
+					: this.menu.getSlot(inventory).getItem().isEmpty();
+			this.moveOne(DroneMenu.TOOL_SLOT, inventory, fromTool);
 			return;
 		}
 		if (this.focus == Focus.HOTBAR) return;
@@ -96,7 +99,7 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 
 	private void transferHotbar() {
 		int other = this.focus == Focus.DRONE && this.leftPage < 2 ? this.droneSlot() : this.inventorySlot();
-		int hotbar = 54 + this.hotbarCursor;
+		int hotbar = DroneMenu.HOTBAR_START + this.hotbarCursor;
 		boolean fromOther = this.focus == Focus.HOTBAR ? this.menu.getSlot(hotbar).getItem().isEmpty() : !this.menu.getSlot(other).getItem().isEmpty();
 		this.moveOne(other, hotbar, fromOther);
 	}
@@ -111,7 +114,7 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 	}
 
 	private int droneSlot() { return this.leftPage * PAGE_SIZE + this.droneCursor; }
-	private int inventorySlot() { return 27 + this.inventoryPage * PAGE_SIZE + this.inventoryCursor; }
+	private int inventorySlot() { return DroneMenu.PLAYER_MAIN_START + this.inventoryPage * PAGE_SIZE + this.inventoryCursor; }
 
 	@Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
 		this.extractTransparentBackground(graphics);
@@ -136,7 +139,7 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 		for (int i = 0; i < count; i++) {
 			double a = Math.PI * 2 * i / count - Math.PI / 2;
 			int x = cx + (int)Math.round(Math.cos(a) * radius) - 10, y = cy + (int)Math.round(Math.sin(a) * radius) - 10;
-			int slot = drone ? page * 14 + i : 27 + page * 14 + i;
+			int slot = drone ? page * 14 + i : DroneMenu.PLAYER_MAIN_START + page * 14 + i;
 			this.slot(graphics, this.menu.getSlot(slot).getItem(), x, y, (drone ? this.droneCursor : this.inventoryCursor) == i,
 					this.focus == (drone ? Focus.DRONE : Focus.INVENTORY));
 		}
@@ -146,8 +149,13 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 	}
 
 	private void options(GuiGraphicsExtractor graphics, int cx, int cy) {
-		String[] labels = this.leftPage == 2 ? MODES : this.mode == DroneMode.STATIC.ordinal() ? MOVES
-				: new String[]{this.mode == 2 ? "No program installed" : "No upgrades installed"};
+		if (this.leftPage == 3) {
+			ItemStack tool = this.menu.getSlot(DroneMenu.TOOL_SLOT).getItem();
+			this.slot(graphics, tool, cx - 10, cy - 10, true, this.focus == Focus.DRONE);
+			this.extractDetails(graphics, tool, cx, cy + 42, "4/4", this.focus == Focus.DRONE);
+			return;
+		}
+		String[] labels = MODES;
 		int top = cy - labels.length * SLOT_SIZE / 2;
 		for (int i = 0; i < labels.length; i++) {
 			boolean selected = i == this.optionCursor, active = this.leftPage == 2 && i == this.mode;
@@ -169,7 +177,7 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 			graphics.centeredText(this.font, "[A] " + mode, this.width / 2, top + 6, 0xFFFFFFFF); return;
 		}
 		int left = (this.width - 9 * SLOT_SIZE) / 2;
-		for (int i = 0; i < 9; i++) this.slot(graphics, this.menu.getSlot(54 + i).getItem(), left + i * SLOT_SIZE, this.height - SLOT_SIZE - 7,
+		for (int i = 0; i < 9; i++) this.slot(graphics, this.menu.getSlot(DroneMenu.HOTBAR_START + i).getItem(), left + i * SLOT_SIZE, this.height - SLOT_SIZE - 7,
 				i == this.hotbarCursor, this.focus == Focus.HOTBAR);
 	}
 

@@ -31,10 +31,19 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 	private DroneMode mode = DroneMode.FOLLOW;
 	private Direction facing = Direction.NORTH;
 	private final SimpleContainer inventory = new SimpleContainer(27);
+	private final SimpleContainer toolInventory = new SimpleContainer(1) {
+		@Override public void setChanged() {
+			super.setChanged();
+			DroneBlockEntity.this.updateLightState();
+		}
+	};
 	private boolean menuOpen;
 	private BlockPos previousPosition;
 
-	public DroneBlockEntity(BlockPos pos, BlockState state) { super(DigiMinerMod.DRONE_BLOCK_ENTITY, pos, state); }
+	public DroneBlockEntity(BlockPos pos, BlockState state) {
+		super(DigiMinerMod.DRONE_BLOCK_ENTITY, pos, state);
+		this.toolInventory.setItem(0, new ItemStack(DigiMinerMod.DRONE_LIGHT));
+	}
 
 	public static void serverTick(net.minecraft.world.level.Level ignored, BlockPos pos, BlockState state, DroneBlockEntity drone) {
 		if (!(drone.level instanceof ServerLevel level) || drone.menuOpen || drone.mode != DroneMode.FOLLOW || drone.ownerId == null
@@ -93,10 +102,19 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		UUID owner = this.ownerId;
 		DroneMode oldMode = this.mode;
 		List<ItemStack> stacks = this.copyInventory();
+		ItemStack tool = this.toolInventory.getItem(0).copy();
+		int dx = target.getX() - this.worldPosition.getX(), dz = target.getZ() - this.worldPosition.getZ();
+		if (dx > 0) this.facing = Direction.EAST;
+		else if (dx < 0) this.facing = Direction.WEST;
+		else if (dz > 0) this.facing = Direction.SOUTH;
+		else if (dz < 0) this.facing = Direction.NORTH;
 		level.setBlock(this.worldPosition, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
-		level.setBlock(target, DigiMinerMod.DRONE_BLOCK.defaultBlockState(), 3);
+		BlockState movedState = DigiMinerMod.DRONE_BLOCK.defaultBlockState()
+				.setValue(DroneBlock.FACING, this.facing)
+				.setValue(DroneBlock.LIT, tool.is(DigiMinerMod.DRONE_LIGHT));
+		level.setBlock(target, movedState, 3);
 		if (level.getBlockEntity(target) instanceof DroneBlockEntity moved) {
-			moved.restore(owner, oldMode, stacks);
+			moved.restore(owner, oldMode, stacks, tool);
 			moved.facing = this.facing;
 			moved.previousPosition = this.worldPosition;
 			moved.setChanged();
@@ -104,26 +122,23 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		}
 	}
 
-	public void runStaticCommand(int command) {
+	public void pushFromHit(Direction hitFace) {
 		if (!(this.level instanceof ServerLevel serverLevel) || this.mode != DroneMode.STATIC) return;
-		if (command == 8) { this.facing = this.facing.getCounterClockWise(); this.setChanged(); return; }
-		if (command == 9) { this.facing = this.facing.getClockWise(); this.setChanged(); return; }
-		Direction move = switch (command) {
-			case 4 -> this.facing;
-			case 5 -> this.facing.getOpposite();
-			case 6 -> Direction.UP;
-			case 7 -> Direction.DOWN;
-			default -> null;
-		};
-		if (move == null) return;
-		BlockPos target = this.worldPosition.relative(move);
+		Direction movement = hitFace.getOpposite();
+		if (movement.getAxis().isHorizontal()) this.facing = movement;
+		BlockPos target = this.worldPosition.relative(movement);
 		if (serverLevel.getBlockState(target).canBeReplaced()) this.moveTo(serverLevel, target);
 	}
 
 	public void restore(UUID owner, DroneMode mode, List<ItemStack> stacks) {
+		this.restore(owner, mode, stacks, new ItemStack(DigiMinerMod.DRONE_LIGHT));
+	}
+
+	public void restore(UUID owner, DroneMode mode, List<ItemStack> stacks, ItemStack tool) {
 		this.ownerId = owner;
 		this.mode = mode;
 		for (int i = 0; i < Math.min(27, stacks.size()); i++) this.inventory.setItem(i, stacks.get(i).copy());
+		this.toolInventory.setItem(0, tool.copy());
 		this.setChanged();
 		this.rememberPosition();
 	}
@@ -145,6 +160,15 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 	public DroneMode getMode() { return this.mode; }
 	public void setMode(DroneMode mode) { this.mode = mode; this.setChanged(); }
 	public SimpleContainer getInventory() { return this.inventory; }
+	public SimpleContainer getToolInventory() { return this.toolInventory; }
+	private void updateLightState() {
+		this.setChanged();
+		if (this.level == null) return;
+		BlockState state = this.getBlockState();
+		if (!state.hasProperty(DroneBlock.LIT)) return;
+		boolean lit = this.toolInventory.getItem(0).is(DigiMinerMod.DRONE_LIGHT);
+		if (state.getValue(DroneBlock.LIT) != lit) this.level.setBlock(this.worldPosition, state.setValue(DroneBlock.LIT, lit), 3);
+	}
 	public void setMenuOpen(boolean menuOpen) { this.menuOpen = menuOpen; }
 	@Override public BlockPos getScreenOpeningData(net.minecraft.server.level.ServerPlayer player) { return this.worldPosition; }
 	@Override public Component getDisplayName() { return Component.literal("Drone"); }
@@ -158,6 +182,7 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		output.putInt("Mode", this.mode.ordinal());
 		output.putInt("Facing", this.facing.get2DDataValue());
 		this.inventory.storeAsItemList(output.list("Inventory", ItemStack.CODEC));
+		if (!this.toolInventory.getItem(0).isEmpty()) output.store("Tool", ItemStack.CODEC, this.toolInventory.getItem(0));
 	}
 
 	@Override protected void loadAdditional(ValueInput input) {
@@ -166,6 +191,7 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		this.mode = DroneMode.byId(input.getIntOr("Mode", 0));
 		this.facing = Direction.from2DDataValue(input.getIntOr("Facing", Direction.NORTH.get2DDataValue()));
 		this.inventory.fromItemList(input.listOrEmpty("Inventory", ItemStack.CODEC));
+		this.toolInventory.setItem(0, input.read("Tool", ItemStack.CODEC).orElseGet(() -> new ItemStack(DigiMinerMod.DRONE_LIGHT)));
 	}
 
 	private record PathNode(BlockPos pos, double cost, double score, BlockPos firstStep) {}

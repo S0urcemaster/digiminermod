@@ -2,6 +2,9 @@
   "item.digiminermod.spawner_scanner": "Survey Scanner",
   "item.digiminermod.iron_scanner": "Iron Scanner",
   "item.digiminermod.drone_core": "Drone Core",
+  "item.digiminermod.drone_light": "Drone Light",
+  "item.digiminermod.drone_drill": "Drone Drill",
+  "item.digiminermod.drone_builder": "Drone Builder",
   "entity.digiminermod.drone": "Drone"
   ,"block.digiminermod.drone": "Drone"
 }

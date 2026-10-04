@@ -14,17 +14,21 @@ import net.minecraft.world.item.ItemStack;
 
 public final class DroneMenu extends AbstractContainerMenu {
 	public static final int DRONE_SLOTS = 27;
+	public static final int PLAYER_MAIN_START = 27;
+	public static final int HOTBAR_START = 54;
+	public static final int TOOL_SLOT = 63;
 	private final Container droneInventory;
+	private final Container toolInventory;
 	private final BlockPos dronePos;
 	private final DroneBlockEntity droneBlockEntity;
 	private final ContainerData data;
 
 	public DroneMenu(int containerId, Inventory playerInventory, BlockPos pos) {
-		this(containerId, playerInventory, new SimpleContainer(DRONE_SLOTS), pos, null, new SimpleContainerData(1));
+		this(containerId, playerInventory, new SimpleContainer(DRONE_SLOTS), new SimpleContainer(1), pos, null, new SimpleContainerData(1));
 	}
 
 	public DroneMenu(int containerId, Inventory playerInventory, DroneBlockEntity drone) {
-		this(containerId, playerInventory, drone.getInventory(), drone.getBlockPos(), drone, new ContainerData() {
+		this(containerId, playerInventory, drone.getInventory(), drone.getToolInventory(), drone.getBlockPos(), drone, new ContainerData() {
 			@Override public int get(int index) { return drone.getMode().ordinal(); }
 			@Override public void set(int index, int value) { drone.setMode(DroneMode.byId(value)); }
 			@Override public int getCount() { return 1; }
@@ -32,10 +36,11 @@ public final class DroneMenu extends AbstractContainerMenu {
 		drone.setMenuOpen(true);
 	}
 
-	private DroneMenu(int containerId, Inventory playerInventory, Container droneInventory, BlockPos pos,
+	private DroneMenu(int containerId, Inventory playerInventory, Container droneInventory, Container toolInventory, BlockPos pos,
 			DroneBlockEntity droneBlockEntity, ContainerData data) {
 		super(DigiMinerMod.DRONE_MENU, containerId);
 		this.droneInventory = droneInventory;
+		this.toolInventory = toolInventory;
 		this.droneBlockEntity = droneBlockEntity;
 		this.data = data;
 		this.dronePos = pos;
@@ -44,6 +49,13 @@ public final class DroneMenu extends AbstractContainerMenu {
 		for (int row = 0; row < 3; row++) for (int column = 0; column < 9; column++)
 			this.addSlot(new Slot(playerInventory, column + row * 9 + 9, 0, 0));
 		for (int i = 0; i < 9; i++) this.addSlot(new Slot(playerInventory, i, 0, 0));
+		this.addSlot(new Slot(toolInventory, 0, 0, 0) {
+			@Override public boolean mayPlace(ItemStack stack) {
+				return stack.is(DigiMinerMod.DRONE_LIGHT) || stack.is(DigiMinerMod.DRONE_DRILL)
+						|| stack.is(DigiMinerMod.DRONE_BUILDER);
+			}
+			@Override public int getMaxStackSize() { return 1; }
+		});
 		this.addDataSlots(data);
 	}
 
@@ -57,9 +69,13 @@ public final class DroneMenu extends AbstractContainerMenu {
 		if (!slot.hasItem()) return result;
 		ItemStack stack = slot.getItem();
 		result = stack.copy();
-		if (index < DRONE_SLOTS) {
-			if (!this.moveItemStackTo(stack, DRONE_SLOTS, this.slots.size(), true)) return ItemStack.EMPTY;
-		} else if (!this.moveItemStackTo(stack, 0, DRONE_SLOTS, false)) return ItemStack.EMPTY;
+		if (index < DRONE_SLOTS || index == TOOL_SLOT) {
+			if (!this.moveItemStackTo(stack, PLAYER_MAIN_START, TOOL_SLOT, true)) return ItemStack.EMPTY;
+		} else {
+			boolean moved = this.slots.get(TOOL_SLOT).mayPlace(stack)
+					&& this.moveItemStackTo(stack, TOOL_SLOT, TOOL_SLOT + 1, false);
+			if (!moved && !this.moveItemStackTo(stack, 0, DRONE_SLOTS, false)) return ItemStack.EMPTY;
+		}
 		if (stack.isEmpty()) slot.setByPlayer(ItemStack.EMPTY); else slot.setChanged();
 		return result;
 	}

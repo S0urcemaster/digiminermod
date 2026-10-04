@@ -3,13 +3,11 @@ package de.sourcemaster.digiminermod.drone;
 import de.sourcemaster.digiminermod.DigiMinerMod;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.core.Direction;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.phys.AABB;
 
 public final class DroneNetworking {
 	private DroneNetworking() {}
@@ -41,7 +39,6 @@ public final class DroneNetworking {
 				drone.setMode(DroneMode.byId(payload.command()));
 				return;
 			}
-			drone.runStaticCommand(payload.command());
 		});
 	}
 

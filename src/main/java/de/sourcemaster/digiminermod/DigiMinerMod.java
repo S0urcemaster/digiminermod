@@ -9,6 +9,7 @@ import de.sourcemaster.digiminermod.drone.DroneMode;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+import net.fabricmc.fabric.api.event.player.AttackBlockCallback;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.core.Registry;
@@ -51,10 +52,19 @@ public final class DigiMinerMod implements ModInitializer {
 	public static final ResourceKey<Item> DRONE_CORE_KEY = ResourceKey.create(Registries.ITEM, id("drone_core"));
 	public static final Item DRONE_CORE = Registry.register(BuiltInRegistries.ITEM, DRONE_CORE_KEY,
 			new DroneCoreItem(new Item.Properties().setId(DRONE_CORE_KEY).stacksTo(1)));
+	public static final ResourceKey<Item> DRONE_LIGHT_KEY = ResourceKey.create(Registries.ITEM, id("drone_light"));
+	public static final Item DRONE_LIGHT = Registry.register(BuiltInRegistries.ITEM, DRONE_LIGHT_KEY,
+			new Item(new Item.Properties().setId(DRONE_LIGHT_KEY).stacksTo(1)));
+	public static final ResourceKey<Item> DRONE_DRILL_KEY = ResourceKey.create(Registries.ITEM, id("drone_drill"));
+	public static final Item DRONE_DRILL = Registry.register(BuiltInRegistries.ITEM, DRONE_DRILL_KEY,
+			new Item(new Item.Properties().setId(DRONE_DRILL_KEY).stacksTo(1)));
+	public static final ResourceKey<Item> DRONE_BUILDER_KEY = ResourceKey.create(Registries.ITEM, id("drone_builder"));
+	public static final Item DRONE_BUILDER = Registry.register(BuiltInRegistries.ITEM, DRONE_BUILDER_KEY,
+			new Item(new Item.Properties().setId(DRONE_BUILDER_KEY).stacksTo(1)));
 	public static final ResourceKey<Block> DRONE_BLOCK_KEY = ResourceKey.create(Registries.BLOCK, id("drone"));
 	public static final DroneBlock DRONE_BLOCK = Registry.register(BuiltInRegistries.BLOCK, DRONE_BLOCK_KEY,
-			new DroneBlock(BlockBehaviour.Properties.of().setId(DRONE_BLOCK_KEY).strength(1.5F)
-					.sound(SoundType.GLASS).lightLevel(state -> 10).noOcclusion().noLootTable()));
+			new DroneBlock(BlockBehaviour.Properties.of().setId(DRONE_BLOCK_KEY).strength(-1.0F, 3600000.0F)
+					.sound(SoundType.GLASS).lightLevel(state -> state.getValue(DroneBlock.LIT) ? 12 : 0).noOcclusion().noLootTable()));
 	public static final ResourceKey<BlockEntityType<?>> DRONE_BLOCK_ENTITY_KEY = ResourceKey.create(Registries.BLOCK_ENTITY_TYPE, id("drone"));
 	public static final BlockEntityType<DroneBlockEntity> DRONE_BLOCK_ENTITY = Registry.register(
 			BuiltInRegistries.BLOCK_ENTITY_TYPE, DRONE_BLOCK_ENTITY_KEY,
@@ -67,6 +77,16 @@ public final class DigiMinerMod implements ModInitializer {
 	public void onInitialize() {
 		FabricDefaultAttributeRegistry.register(DRONE, DroneEntity.createAttributes());
 		DroneNetworking.registerServer();
+		AttackBlockCallback.EVENT.register((player, level, hand, pos, direction) -> {
+			if (hand != net.minecraft.world.InteractionHand.MAIN_HAND || !level.getBlockState(pos).is(DRONE_BLOCK)) {
+				return net.minecraft.world.InteractionResult.PASS;
+			}
+			if (!level.isClientSide() && level.getBlockEntity(pos) instanceof DroneBlockEntity drone
+					&& drone.isOwner(player) && drone.getMode() == DroneMode.STATIC) {
+				drone.pushFromHit(direction);
+			}
+			return net.minecraft.world.InteractionResult.SUCCESS;
+		});
 		ServerPlayConnectionEvents.JOIN.register((listener, sender, server) -> {
 			var player = listener.player;
 			removeLegacyDroneCores(player);

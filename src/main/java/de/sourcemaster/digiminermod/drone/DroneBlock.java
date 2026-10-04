@@ -3,7 +3,6 @@ package de.sourcemaster.digiminermod.drone;
 import com.mojang.serialization.MapCodec;
 import de.sourcemaster.digiminermod.DigiMinerMod;
 import net.minecraft.core.BlockPos;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
@@ -15,6 +14,10 @@ import net.minecraft.world.level.block.entity.BlockEntityTicker;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.BooleanProperty;
+import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
@@ -23,9 +26,17 @@ import net.minecraft.world.InteractionHand;
 
 public final class DroneBlock extends BaseEntityBlock {
 	public static final MapCodec<DroneBlock> CODEC = BlockBehaviour.simpleCodec(DroneBlock::new);
+	public static final EnumProperty<net.minecraft.core.Direction> FACING = BlockStateProperties.HORIZONTAL_FACING;
+	public static final BooleanProperty LIT = BlockStateProperties.LIT;
 	private static final VoxelShape SHAPE = box(3, 3, 3, 13, 13, 13);
 
-	public DroneBlock(Properties properties) { super(properties); }
+	public DroneBlock(Properties properties) {
+		super(properties);
+		this.registerDefaultState(this.stateDefinition.any().setValue(FACING, net.minecraft.core.Direction.NORTH).setValue(LIT, true));
+	}
+	@Override protected void createBlockStateDefinition(StateDefinition.Builder<net.minecraft.world.level.block.Block, BlockState> builder) {
+		builder.add(FACING, LIT);
+	}
 	@Override protected MapCodec<? extends BaseEntityBlock> codec() { return CODEC; }
 	@Override public BlockEntity newBlockEntity(BlockPos pos, BlockState state) { return new DroneBlockEntity(pos, state); }
 	@Override protected RenderShape getRenderShape(BlockState state) { return RenderShape.MODEL; }
@@ -49,17 +60,6 @@ public final class DroneBlock extends BaseEntityBlock {
 			serverPlayer.openMenu(drone);
 		}
 		return InteractionResult.SUCCESS;
-	}
-
-	@Override
-	public BlockState playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
-		if (level instanceof ServerLevel serverLevel && level.getBlockEntity(pos) instanceof DroneBlockEntity drone) {
-			var owner = drone.getOwnerId();
-			var stacks = drone.copyInventory();
-			var mode = drone.getMode();
-			serverLevel.getServer().execute(() -> DigiMinerMod.respawnDroneAtSpawn(serverLevel, owner, mode, stacks));
-		}
-		return super.playerWillDestroy(level, pos, state, player);
 	}
 
 	@Override
