@@ -53,6 +53,9 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 	private int roomBlockIndex;
 	private BlockPos roomOrigin;
 	private Direction roomFacing = Direction.NORTH;
+	private BlockPos pendingMoveTarget;
+	private long movementReadyTick;
+	private long lastMovementTick = Long.MIN_VALUE / 2;
 	private String droneName = "Digi";
 
 	public DroneBlockEntity(BlockPos pos, BlockState state) {
@@ -87,11 +90,11 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 			}
 		}
 		if (!state.getValue(DroneBlock.LIT)) level.setBlock(pos, state.setValue(DroneBlock.LIT, true), 3);
+		if (drone.processPendingMovement(level)) return;
 		if (drone.activeProgram >= 0) {
 			if (drone.mode == DroneMode.EXCAVATE || level.getGameTime() % 4 == 0) drone.runProgramStep(level);
 			return;
 		}
-		if (level.getGameTime() % 4 != 0) return;
 		if (drone.menuOpen || drone.mode != DroneMode.FOLLOW) return;
 		if (owner == null || owner.level() != level) return;
 		BlockPos destination = owner.blockPosition().above();
@@ -146,23 +149,26 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		}
 		ItemStack material = this.inventory.getItem(0);
 		if (!(material.getItem() instanceof BlockItem blockItem)) {
-			this.activeProgram = -1;
-			this.setChanged();
+			this.stopProgram(level);
 			return;
 		}
 		BlockPos nextDronePos = this.worldPosition.relative(this.facing);
 		BlockPos bridgePos = nextDronePos.below();
 		if (!level.getBlockState(nextDronePos).canBeReplaced() || !level.getBlockState(bridgePos).canBeReplaced()) {
-			this.activeProgram = -1;
-			this.setChanged();
+			this.stopProgram(level);
 			return;
 		}
-		level.setBlock(bridgePos, blockItem.getBlock().defaultBlockState(), 3);
+		if (!level.setBlock(bridgePos, blockItem.getBlock().defaultBlockState(), 3)) {
+			this.stopProgram(level);
+			return;
+		}
 		material.shrink(1);
 		this.inventory.setChanged();
 		this.programRemaining--;
-		if (!this.damageCartridge(1, 1)) this.activeProgram = -1;
-		if (this.programRemaining <= 0) this.activeProgram = -1;
+		if (!this.damageCartridge(1, 1)) {
+			this.stopProgram(level);
+			return;
+		}
 		this.moveTo(level, nextDronePos);
 	}
 
@@ -173,7 +179,6 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 			this.shaftMoveDownPending = false;
 			this.shaftClearIndex = 0;
 			this.programRemaining--;
-			if (this.programRemaining <= 0) this.activeProgram = -1;
 			this.moveTo(level, down);
 			return;
 		}
@@ -291,6 +296,7 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		this.shaftMoveDownPending = false;
 		this.shaftClearIndex = 0;
 		this.roomOrigin = null;
+		this.pendingMoveTarget = null;
 		this.setChanged();
 	}
 
@@ -349,17 +355,65 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 	}
 
 	private void moveTo(ServerLevel level, BlockPos target) {
+		if (this.pendingMoveTarget != null || target.equals(this.worldPosition)) return;
+		if (this.activeProgram < 0) {
+			if (!level.getBlockState(target).canBeReplaced()) return;
+			int dx = target.getX() - this.worldPosition.getX();
+			int dz = target.getZ() - this.worldPosition.getZ();
+			if (dx > 0) this.facing = Direction.EAST;
+			else if (dx < 0) this.facing = Direction.WEST;
+			else if (dz > 0) this.facing = Direction.SOUTH;
+			else if (dz < 0) this.facing = Direction.NORTH;
+			this.lastMovementTick = level.getGameTime();
+			this.relocateTo(level, target);
+			return;
+		}
+		this.pendingMoveTarget = target.immutable();
+		this.movementReadyTick = Math.max(level.getGameTime(), this.lastMovementTick + 4L);
+		this.processPendingMovement(level);
+	}
+
+	/** Returns true while movement/turning owns this tick. */
+	private boolean processPendingMovement(ServerLevel level) {
+		if (this.pendingMoveTarget == null) return false;
+		long now = level.getGameTime();
+		if (now < this.movementReadyTick) return true;
+
+		int dx = this.pendingMoveTarget.getX() - this.worldPosition.getX();
+		int dz = this.pendingMoveTarget.getZ() - this.worldPosition.getZ();
+		Direction wanted = dx > 0 ? Direction.EAST : dx < 0 ? Direction.WEST
+				: dz > 0 ? Direction.SOUTH : dz < 0 ? Direction.NORTH : null;
+		if (wanted != null && this.facing != wanted) {
+			this.facing = this.facing.getClockWise() == wanted || this.facing.getOpposite() == wanted
+					? this.facing.getClockWise() : this.facing.getCounterClockWise();
+			BlockState state = level.getBlockState(this.worldPosition);
+			if (state.is(DigiMinerMod.DRONE_BLOCK)) {
+				level.setBlock(this.worldPosition, state.setValue(DroneBlock.FACING, this.facing), 3);
+			}
+			this.movementReadyTick = now + 4L;
+			this.setChanged();
+			return true;
+		}
+
+		BlockPos target = this.pendingMoveTarget;
+		if (!level.getBlockState(target).canBeReplaced()) {
+			this.pendingMoveTarget = null;
+			if (this.activeProgram >= 0) this.stopProgram(level);
+			return true;
+		}
+		this.pendingMoveTarget = null;
+		this.lastMovementTick = now;
+		this.relocateTo(level, target);
+		return true;
+	}
+
+	private void relocateTo(ServerLevel level, BlockPos target) {
 		UUID owner = this.ownerId;
 		DroneMode oldMode = this.mode;
 		List<ItemStack> stacks = this.copyInventory();
 		ItemStack scannerCartridge = this.equipmentInventory.getItem(0).copy();
 		ItemStack programDrive = this.equipmentInventory.getItem(1).copy();
 		ItemStack excavateCartridge = this.equipmentInventory.getItem(2).copy();
-		int dx = target.getX() - this.worldPosition.getX(), dz = target.getZ() - this.worldPosition.getZ();
-		if (dx > 0) this.facing = Direction.EAST;
-		else if (dx < 0) this.facing = Direction.WEST;
-		else if (dz > 0) this.facing = Direction.SOUTH;
-		else if (dz < 0) this.facing = Direction.NORTH;
 		level.setBlock(this.worldPosition, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
 		BlockState movedState = DigiMinerMod.DRONE_BLOCK.defaultBlockState()
 				.setValue(DroneBlock.FACING, this.facing)
@@ -381,6 +435,9 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 			moved.roomBlockIndex = this.roomBlockIndex;
 			moved.roomOrigin = this.roomOrigin;
 			moved.roomFacing = this.roomFacing;
+			moved.pendingMoveTarget = null;
+			moved.movementReadyTick = this.movementReadyTick;
+			moved.lastMovementTick = this.lastMovementTick;
 			moved.setDroneName(this.droneName);
 			moved.previousPosition = this.worldPosition;
 			moved.setChanged();
@@ -389,8 +446,7 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 	}
 
 	public void pushFromHit(Direction hitFace) {
-		if (!(this.level instanceof ServerLevel serverLevel)
-				|| this.mode != DroneMode.STATIC && this.mode != DroneMode.FOLLOW) return;
+		if (!(this.level instanceof ServerLevel serverLevel)) return;
 		Direction movement = hitFace.getOpposite();
 		if (movement.getAxis().isHorizontal()) this.facing = movement;
 		BlockPos target = this.worldPosition.relative(movement);
@@ -472,6 +528,9 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		output.putInt("RoomBlockIndex", this.roomBlockIndex);
 		if (this.roomOrigin != null) output.putLong("RoomOrigin", this.roomOrigin.asLong());
 		output.putInt("RoomFacing", this.roomFacing.get2DDataValue());
+		if (this.pendingMoveTarget != null) output.putLong("PendingMoveTarget", this.pendingMoveTarget.asLong());
+		output.putLong("MovementReadyTick", this.movementReadyTick);
+		output.putLong("LastMovementTick", this.lastMovementTick);
 		output.putString("DroneName", this.droneName);
 		this.inventory.storeAsItemList(output.list("Inventory", ItemStack.CODEC));
 		output.putBoolean("CartridgeSlotsStored", true);
@@ -498,6 +557,9 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		this.roomBlockIndex = input.getIntOr("RoomBlockIndex", 0);
 		this.roomOrigin = input.getLong("RoomOrigin").map(BlockPos::of).orElse(null);
 		this.roomFacing = Direction.from2DDataValue(input.getIntOr("RoomFacing", Direction.NORTH.get2DDataValue()));
+		this.pendingMoveTarget = input.getLong("PendingMoveTarget").map(BlockPos::of).orElse(null);
+		this.movementReadyTick = input.getLongOr("MovementReadyTick", 0L);
+		this.lastMovementTick = input.getLongOr("LastMovementTick", Long.MIN_VALUE / 2);
 		this.droneName = input.getStringOr("DroneName", "Digi");
 		this.inventory.fromItemList(input.listOrEmpty("Inventory", ItemStack.CODEC));
 		boolean cartridgeSlotsStored = input.getBooleanOr("CartridgeSlotsStored", false);
