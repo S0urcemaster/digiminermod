@@ -41,7 +41,15 @@ public final class DroneBlock extends BaseEntityBlock {
 	@Override public BlockEntity newBlockEntity(BlockPos pos, BlockState state) { return new DroneBlockEntity(pos, state); }
 	@Override protected RenderShape getRenderShape(BlockState state) { return RenderShape.MODEL; }
 	@Override protected VoxelShape getShape(BlockState state, net.minecraft.world.level.BlockGetter level, BlockPos pos, CollisionContext context) { return SHAPE; }
-	@Override protected VoxelShape getCollisionShape(BlockState state, net.minecraft.world.level.BlockGetter level, BlockPos pos, CollisionContext context) { return SHAPE; }
+	@Override
+	protected VoxelShape getCollisionShape(BlockState state, net.minecraft.world.level.BlockGetter level,
+			BlockPos pos, CollisionContext context) {
+		if (context instanceof net.minecraft.world.phys.shapes.EntityCollisionContext entityContext
+				&& entityContext.getEntity() instanceof Player player && player.isShiftKeyDown()) {
+			return net.minecraft.world.phys.shapes.Shapes.empty();
+		}
+		return SHAPE;
+	}
 
 	@Override
 	protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {

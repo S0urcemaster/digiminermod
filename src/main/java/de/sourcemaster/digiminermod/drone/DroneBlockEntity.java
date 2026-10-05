@@ -124,9 +124,13 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		}
 		if (drone.menuOpen || drone.mode != DroneMode.FOLLOW) return;
 		if (owner == null || owner.level() != level) return;
-		BlockPos destination = owner.blockPosition();
+		BlockPos eyeLevel = owner.blockPosition().above();
+		int destinationY = pos.getY() < eyeLevel.getY() - 2 ? eyeLevel.getY() - 2
+				: pos.getY() > eyeLevel.getY() + 2 ? eyeLevel.getY() + 2 : pos.getY();
+		BlockPos destination = new BlockPos(eyeLevel.getX(), destinationY, eyeLevel.getZ());
 		int tetherLength = chebyshevDistance(pos, destination);
-		if (horizontalDistance(pos, destination) <= 4 && pos.getY() == destination.getY()) return;
+		if (horizontalDistance(pos, destination) <= 4
+				&& Math.abs(pos.getY() - eyeLevel.getY()) <= 2) return;
 		if (level.getGameTime() - drone.lastMovementTick < FOLLOW_MOVE_TICKS) return;
 		BlockPos next = drone.nextFollowStep(level, pos, destination, tetherLength);
 		if (next != null) drone.moveTo(level, next);
@@ -574,7 +578,7 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		if (!(this.level instanceof ServerLevel oldLevel) || this.mode != DroneMode.FOLLOW || owner.isInWater()) return;
 		ServerLevel targetLevel = owner.level();
 		BlockPos origin = owner.blockPosition();
-		BlockPos preferred = origin.relative(owner.getDirection().getOpposite(), 4);
+		BlockPos preferred = origin.relative(owner.getDirection().getOpposite(), 4).above();
 		BlockPos target = null;
 		if (isSafeTeleportTarget(targetLevel, preferred, owner)) {
 			target = preferred;
