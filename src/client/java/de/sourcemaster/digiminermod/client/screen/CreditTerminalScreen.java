@@ -22,6 +22,8 @@ public final class CreditTerminalScreen extends Screen implements MenuAccess<Cre
 	private boolean previousA, previousDpad, previousLB, previousRB, previousLT, previousRT;
 	private boolean aFromTerminal, dpadFromOther;
 	private long nextARepeat, nextDpadRepeat;
+	private final ItemTransferAcceleration aTransferAcceleration = new ItemTransferAcceleration();
+	private final ItemTransferAcceleration dpadTransferAcceleration = new ItemTransferAcceleration();
 
 	public CreditTerminalScreen(CreditTerminalMenu menu, Inventory inventory, Component title) { super(title); this.menu = menu; }
 	@Override public CreditTerminalMenu getMenu() { return this.menu; }
@@ -68,23 +70,19 @@ public final class CreditTerminalScreen extends Screen implements MenuAccess<Cre
 	}
 
 	private void handleATransfer(boolean pressed) {
-		long now = System.nanoTime();
+		int amount = this.aTransferAcceleration.amount(pressed, this.previousA);
 		if (pressed && !this.previousA) {
 			this.aFromTerminal = switch (this.focus) {
 				case TERMINAL -> this.menu.getSlot(this.terminalCursor).getItem().isEmpty() ? false : true;
 				case INVENTORY -> this.menu.getSlot(this.inventorySlot()).getItem().isEmpty();
 				case HOTBAR -> false;
 			};
-			this.moveOne(this.terminalCursor, this.inventorySlot(), this.aFromTerminal);
-			this.nextARepeat = now + INITIAL_REPEAT_DELAY;
-		} else if (pressed && now >= this.nextARepeat) {
-			this.moveOne(this.terminalCursor, this.inventorySlot(), this.aFromTerminal);
-			this.nextARepeat = now + REPEAT_INTERVAL;
 		}
+		for (int i = 0; i < amount; i++) this.moveOne(this.terminalCursor, this.inventorySlot(), this.aFromTerminal);
 	}
 
 	private void handleDpadTransfer(boolean pressed) {
-		long now = System.nanoTime();
+		int amount = this.dpadTransferAcceleration.amount(pressed, this.previousDpad);
 		int other = this.inventorySlot();
 		int hotbar = CreditTerminalMenu.HOTBAR_START + this.hotbarCursor;
 		if (pressed && !this.previousDpad) {
@@ -93,12 +91,8 @@ public final class CreditTerminalScreen extends Screen implements MenuAccess<Cre
 					: this.focus == Focus.INVENTORY
 							? !this.menu.getSlot(other).getItem().isEmpty()
 							: true;
-			this.moveOne(other, hotbar, this.dpadFromOther);
-			this.nextDpadRepeat = now + INITIAL_REPEAT_DELAY;
-		} else if (pressed && now >= this.nextDpadRepeat) {
-			this.moveOne(other, hotbar, this.dpadFromOther);
-			this.nextDpadRepeat = now + REPEAT_INTERVAL;
 		}
+		for (int i = 0; i < amount; i++) this.moveOne(other, hotbar, this.dpadFromOther);
 	}
 
 	private void moveOne(int first, int second, boolean fromFirst) {

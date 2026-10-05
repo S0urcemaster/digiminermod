@@ -32,6 +32,11 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 	private boolean previousA, previousDpad, previousLB, previousRB, previousLT, previousRT;
 	private boolean dpadFromInventory;
 	private long nextDpadRepeat;
+	private final ItemTransferAcceleration aTransferAcceleration = new ItemTransferAcceleration();
+	private final ItemTransferAcceleration dpadTransferAcceleration = new ItemTransferAcceleration();
+	private int aTransferFirst;
+	private int aTransferSecond;
+	private boolean aTransferFromFirst;
 	private EditBox parameterOne, parameterTwo, parameterThree, droneName;
 	private static final String[][][] SESSION_PARAMETER_VALUES = {
 			{{"10", "", ""}, {"10", "3", ""}, {"10", "3", ""}},
@@ -121,7 +126,15 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 		if (this.focus == Focus.HOTBAR && lt && !this.previousLT) this.hotbarPage = 0;
 		if (this.focus == Focus.HOTBAR && rt && !this.previousRT) this.hotbarPage = 1;
 		boolean a = pad.pressed(config.binding(ControllerAction.INVENTORY_TRANSFER_SECONDARY));
-		if (a && !this.previousA) this.activate(config);
+		if (this.isItemTransferPage()) {
+			int amount = this.aTransferAcceleration.amount(a, this.previousA);
+			if (a && !this.previousA) this.prepareATransfer();
+			for (int i = 0; i < amount; i++) this.moveOne(
+					this.aTransferFirst, this.aTransferSecond, this.aTransferFromFirst);
+		} else {
+			this.aTransferAcceleration.amount(false, this.previousA);
+			if (a && !this.previousA) this.activate(config);
+		}
 		boolean dpad = pad.pressed(config.binding(ControllerAction.INVENTORY_TRANSFER_HOTBAR));
 		if (this.hotbarPage == 0) this.handleHotbarTransfer(dpad);
 		this.previousA = a; this.previousDpad = dpad; this.previousLB = lb; this.previousRB = rb; this.previousLT = lt; this.previousRT = rt;
@@ -259,6 +272,24 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 		this.moveOne(drone, inventory, fromDrone);
 	}
 
+	private boolean isItemTransferPage() {
+		return this.leftPage < 2 || this.leftPage == 3 && this.mode == 1;
+	}
+
+	private void prepareATransfer() {
+		int inventory = this.inventorySlot();
+		if (this.leftPage == 3) {
+			this.aTransferFirst = this.optionCursor == 1 ? DroneMenu.PROGRAM_DRIVE_SLOT
+					: this.optionCursor == 2 ? DroneMenu.EXCAVATE_CARTRIDGE_SLOT : DroneMenu.SCANNER_CARTRIDGE_SLOT;
+		} else {
+			this.aTransferFirst = this.droneSlot();
+		}
+		this.aTransferSecond = inventory;
+		this.aTransferFromFirst = this.focus == Focus.DRONE
+				? !this.menu.getSlot(this.aTransferFirst).getItem().isEmpty()
+				: this.focus == Focus.INVENTORY && this.menu.getSlot(inventory).getItem().isEmpty();
+	}
+
 	private boolean hasCartridge(int selectedMode) {
 		return selectedMode == 2
 				? this.menu.getSlot(DroneMenu.PROGRAM_DRIVE_SLOT).getItem().is(DigiMinerMod.BASIC_BUILD_CARTRIDGE)
@@ -287,7 +318,7 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 	}
 
 	private void handleHotbarTransfer(boolean pressed) {
-		long now = System.nanoTime();
+		int amount = this.dpadTransferAcceleration.amount(pressed, this.previousDpad);
 		int other = this.inventorySlot();
 		int hotbar = DroneMenu.HOTBAR_START + this.hotbarCursor;
 		if (pressed && !this.previousDpad) {
@@ -296,12 +327,8 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 					: this.focus == Focus.INVENTORY
 							? !this.menu.getSlot(other).getItem().isEmpty()
 							: true;
-			this.moveOne(other, hotbar, this.dpadFromInventory);
-			this.nextDpadRepeat = now + INITIAL_REPEAT_DELAY;
-		} else if (pressed && now >= this.nextDpadRepeat) {
-			this.moveOne(other, hotbar, this.dpadFromInventory);
-			this.nextDpadRepeat = now + REPEAT_INTERVAL;
 		}
+		for (int i = 0; i < amount; i++) this.moveOne(other, hotbar, this.dpadFromInventory);
 	}
 
 	private void moveOne(int first, int second, boolean fromFirst) {

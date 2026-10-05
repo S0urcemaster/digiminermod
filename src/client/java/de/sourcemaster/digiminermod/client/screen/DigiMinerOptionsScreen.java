@@ -42,9 +42,12 @@ public final class DigiMinerOptionsScreen extends Screen {
 				DigiMinerConfig.get().lookAccelerationHorizontal(), DigiMinerConfig.get()::setLookAccelerationHorizontal, Unit.ACCELERATION));
 		this.addRenderableWidget(new ConfigSlider(right, top + 72, 150, "Vertical accel.", 90.0, 3600.0,
 				DigiMinerConfig.get().lookAccelerationVertical(), DigiMinerConfig.get()::setLookAccelerationVertical, Unit.ACCELERATION));
+		this.addRenderableWidget(new ConfigSlider(centerX - 100, top + 96, 200, "Item transfer accel.", 1.0, 100.0,
+				DigiMinerConfig.get().itemTransferAccelerationTicks(),
+				DigiMinerConfig.get()::setItemTransferAccelerationTicks, Unit.TICKS));
 		this.addRenderableWidget(Button.builder(Component.literal("Controller bindings..."),
 				pressed -> this.minecraft.gui.setScreen(new ControllerBindingsScreen(this)))
-				.bounds(centerX - 100, top + 100, 200, 20).build());
+				.bounds(centerX - 100, top + 120, 200, 20).build());
 		this.addRenderableWidget(Button.builder(Component.literal("Done"), button -> this.onClose())
 				.bounds(centerX - 100, this.height - 28, 200, 20)
 				.build());
@@ -69,7 +72,7 @@ public final class DigiMinerOptionsScreen extends Screen {
 		void accept(double value);
 	}
 
-	private enum Unit { PERCENT, SPEED, ACCELERATION }
+	private enum Unit { PERCENT, SPEED, ACCELERATION, TICKS }
 
 	private static final class ConfigSlider extends AbstractSliderButton {
 		private final String label;
@@ -100,6 +103,7 @@ public final class DigiMinerOptionsScreen extends Screen {
 				case PERCENT -> Math.round(actual * 100.0) + "%";
 				case SPEED -> Math.round(actual) + "°/s";
 				case ACCELERATION -> Math.round(actual) + "°/s²";
+				case TICKS -> Math.round(actual) + " ticks";
 			};
 			this.setMessage(Component.literal(this.label + ": " + formatted));
 		}

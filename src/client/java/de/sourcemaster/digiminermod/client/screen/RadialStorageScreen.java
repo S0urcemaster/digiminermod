@@ -26,6 +26,8 @@ public class RadialStorageScreen<T extends AbstractContainerMenu> extends Screen
 	private boolean previousA, previousDpad, previousLB, previousRB, previousLT, previousRT;
 	private boolean aFromStorage, dpadFromInventory;
 	private long nextARepeat, nextDpadRepeat;
+	private final ItemTransferAcceleration aTransferAcceleration = new ItemTransferAcceleration();
+	private final ItemTransferAcceleration dpadTransferAcceleration = new ItemTransferAcceleration();
 
 	public RadialStorageScreen(T menu, Inventory inventory, Component title, int storageSlots) {
 		super(title);
@@ -87,7 +89,7 @@ public class RadialStorageScreen<T extends AbstractContainerMenu> extends Screen
 	}
 
 	private void handleATransfer(boolean pressed) {
-		long now = System.nanoTime();
+		int amount = this.aTransferAcceleration.amount(pressed, this.previousA);
 		int storage = this.storageSlot(), inventory = this.inventorySlot();
 		if (pressed && !this.previousA) {
 			this.aFromStorage = switch (this.focus) {
@@ -95,16 +97,12 @@ public class RadialStorageScreen<T extends AbstractContainerMenu> extends Screen
 				case INVENTORY -> this.menu.getSlot(inventory).getItem().isEmpty();
 				case HOTBAR -> false;
 			};
-			this.moveOne(storage, inventory, this.aFromStorage);
-			this.nextARepeat = now + INITIAL_REPEAT_DELAY;
-		} else if (pressed && now >= this.nextARepeat) {
-			this.moveOne(storage, inventory, this.aFromStorage);
-			this.nextARepeat = now + REPEAT_INTERVAL;
 		}
+		for (int i = 0; i < amount; i++) this.moveOne(storage, inventory, this.aFromStorage);
 	}
 
 	private void handleDpadTransfer(boolean pressed) {
-		long now = System.nanoTime();
+		int amount = this.dpadTransferAcceleration.amount(pressed, this.previousDpad);
 		int inventory = this.inventorySlot(), hotbar = this.hotbarSlot();
 		if (pressed && !this.previousDpad) {
 			this.dpadFromInventory = switch (this.focus) {
@@ -112,12 +110,8 @@ public class RadialStorageScreen<T extends AbstractContainerMenu> extends Screen
 				case INVENTORY -> !this.menu.getSlot(inventory).getItem().isEmpty();
 				case STORAGE -> true;
 			};
-			this.moveOne(inventory, hotbar, this.dpadFromInventory);
-			this.nextDpadRepeat = now + INITIAL_REPEAT_DELAY;
-		} else if (pressed && now >= this.nextDpadRepeat) {
-			this.moveOne(inventory, hotbar, this.dpadFromInventory);
-			this.nextDpadRepeat = now + REPEAT_INTERVAL;
 		}
+		for (int i = 0; i < amount; i++) this.moveOne(inventory, hotbar, this.dpadFromInventory);
 	}
 
 	private void moveOne(int first, int second, boolean fromFirst) {

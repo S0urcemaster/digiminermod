@@ -25,6 +25,7 @@ public final class DigiMinerConfig {
 	private double lookAccelerationVertical = 1200.0;
 	private boolean invertLookY;
 	private boolean startStopMining;
+	private int itemTransferAccelerationTicks = 20;
 	private final EnumMap<ControllerAction, ControllerButton> bindings = new EnumMap<>(ControllerAction.class);
 
 	private DigiMinerConfig() {
@@ -52,6 +53,7 @@ public final class DigiMinerConfig {
 	public double lookAccelerationVertical() { return this.lookAccelerationVertical; }
 	public boolean invertLookY() { return this.invertLookY; }
 	public boolean startStopMining() { return this.startStopMining; }
+	public int itemTransferAccelerationTicks() { return this.itemTransferAccelerationTicks; }
 
 	public void setMoveDeadzone(double value) { this.moveDeadzone = clamp(value, 0.0, 0.5); this.save(); }
 	public void setLookDeadzone(double value) { this.lookDeadzone = clamp(value, 0.0, 0.5); this.save(); }
@@ -61,6 +63,10 @@ public final class DigiMinerConfig {
 	public void setLookAccelerationVertical(double value) { this.lookAccelerationVertical = clamp(value, 90.0, 3600.0); this.save(); }
 	public void setInvertLookY(boolean value) { this.invertLookY = value; this.save(); }
 	public void setStartStopMining(boolean value) { this.startStopMining = value; this.save(); }
+	public void setItemTransferAccelerationTicks(double value) {
+		this.itemTransferAccelerationTicks = (int)Math.round(clamp(value, 1.0, 100.0));
+		this.save();
+	}
 
 	public ControllerButton binding(ControllerAction action) { return this.bindings.get(action); }
 	public void setBinding(ControllerAction action, ControllerButton button) { this.bindings.put(action, button); this.save(); }
@@ -93,6 +99,8 @@ public final class DigiMinerConfig {
 			config.lookAccelerationVertical = readDouble(properties, "lookAccelerationVertical", 1200.0, 90.0, 3600.0);
 			config.invertLookY = Boolean.parseBoolean(properties.getProperty("invertLookY", "false"));
 			config.startStopMining = Boolean.parseBoolean(properties.getProperty("startStopMining", "false"));
+			config.itemTransferAccelerationTicks = (int)readDouble(properties,
+					"itemTransferAccelerationTicks", 20.0, 1.0, 100.0);
 			for (ControllerAction action : ControllerAction.values()) {
 				try {
 					config.bindings.put(action, ControllerButton.valueOf(properties.getProperty(
@@ -118,6 +126,7 @@ public final class DigiMinerConfig {
 		properties.setProperty("lookAccelerationVertical", Double.toString(this.lookAccelerationVertical));
 		properties.setProperty("invertLookY", Boolean.toString(this.invertLookY));
 		properties.setProperty("startStopMining", Boolean.toString(this.startStopMining));
+		properties.setProperty("itemTransferAccelerationTicks", Integer.toString(this.itemTransferAccelerationTicks));
 		for (ControllerAction action : ControllerAction.values()) {
 			properties.setProperty("binding." + action.name(), this.binding(action).name());
 		}

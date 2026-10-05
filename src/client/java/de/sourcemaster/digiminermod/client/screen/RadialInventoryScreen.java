@@ -64,6 +64,8 @@ public final class RadialInventoryScreen extends Screen {
 	private long nextDpadRepeat;
 	private long nextARepeat;
 	private long nextYRepeat;
+	private final ItemTransferAcceleration aTransferAcceleration = new ItemTransferAcceleration();
+	private final ItemTransferAcceleration dpadTransferAcceleration = new ItemTransferAcceleration();
 	private ControllerSupport.Snapshot controller = ControllerSupport.Snapshot.NONE;
 
 	public RadialInventoryScreen() {
@@ -207,23 +209,21 @@ public final class RadialInventoryScreen extends Screen {
 	}
 
 	private void handleDpadTransfer(boolean pressed) {
-		long now = System.nanoTime();
+		int amount = this.dpadTransferAcceleration.amount(pressed, this.previousDpadDown);
 		if (pressed && !this.previousDpadDown) {
 			this.dpadFromInventory = switch (this.activeRing) {
 				case HOTBAR -> this.menuStack(this.hotbarMenuSlot()).isEmpty();
 				case INVENTORY -> !this.menuStack(this.inventoryMenuSlot()).isEmpty();
 				case LEFT -> true;
 			};
+		}
+		for (int i = 0; i < amount; i++) {
 			this.moveOne(this.inventoryMenuSlot(), this.hotbarMenuSlot(), this.dpadFromInventory);
-			this.nextDpadRepeat = now + INITIAL_REPEAT_DELAY;
-		} else if (pressed && now >= this.nextDpadRepeat) {
-			this.moveOne(this.inventoryMenuSlot(), this.hotbarMenuSlot(), this.dpadFromInventory);
-			this.nextDpadRepeat = now + REPEAT_INTERVAL;
 		}
 	}
 
 	private void handleATransfer(boolean pressed) {
-		long now = System.nanoTime();
+		int amount = this.aTransferAcceleration.amount(pressed, this.previousA);
 		if (pressed && !this.previousA) {
 			if (this.leftPage == LeftPage.RECIPES) return;
 			this.aFromEquipment = switch (this.activeRing) {
@@ -231,13 +231,10 @@ public final class RadialInventoryScreen extends Screen {
 				case INVENTORY -> this.menuStack(this.inventoryMenuSlot()).isEmpty();
 				case HOTBAR -> false;
 			};
-			this.moveOne(this.leftMenuSlot(), this.inventoryMenuSlot(), this.aFromEquipment);
-			this.nextARepeat = now + INITIAL_REPEAT_DELAY;
-		} else if (pressed && now >= this.nextARepeat) {
-			if (this.leftPage != LeftPage.RECIPES) {
-				this.moveOne(this.leftMenuSlot(), this.inventoryMenuSlot(), this.aFromEquipment);
-			}
-			this.nextARepeat = now + REPEAT_INTERVAL;
+		}
+		if (this.leftPage != LeftPage.RECIPES) {
+			for (int i = 0; i < amount; i++) this.moveOne(
+					this.leftMenuSlot(), this.inventoryMenuSlot(), this.aFromEquipment);
 		}
 	}
 

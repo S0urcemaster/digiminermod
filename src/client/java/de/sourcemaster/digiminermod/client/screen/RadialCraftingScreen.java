@@ -53,6 +53,9 @@ public final class RadialCraftingScreen extends Screen {
 	private long nextYRepeat;
 	private long nextDpadRepeat;
 	private boolean dpadFromInventory;
+	private boolean aFromCrafting;
+	private final ItemTransferAcceleration aTransferAcceleration = new ItemTransferAcceleration();
+	private final ItemTransferAcceleration dpadTransferAcceleration = new ItemTransferAcceleration();
 	private ControllerSupport.Snapshot controller = ControllerSupport.Snapshot.NONE;
 
 	public RadialCraftingScreen(CraftingMenu menu) {
@@ -90,8 +93,10 @@ public final class RadialCraftingScreen extends Screen {
 		boolean rt = this.controller.pressed(config.binding(ControllerAction.INVENTORY_PAGE_NEXT));
 		if (this.focus == Focus.HOTBAR && lt && !this.previousLT) this.hotbarPage = 0;
 		if (this.focus == Focus.HOTBAR && rt && !this.previousRT) this.hotbarPage = 1;
-		if (this.focus == Focus.CRAFTING && lt && !this.previousLT) this.leftPage = LeftPage.CRAFTING;
-		if (this.focus == Focus.CRAFTING && rt && !this.previousRT) this.leftPage = LeftPage.RECIPES;
+		if (this.focus == Focus.CRAFTING && (lt && !this.previousLT || rt && !this.previousRT)) {
+			LeftPage[] pages = LeftPage.values();
+			this.leftPage = pages[Math.floorMod(this.leftPage.ordinal() + (rt ? 1 : -1), pages.length)];
+		}
 		if (this.focus == Focus.INVENTORY && lt && !this.previousLT) this.page = Math.floorMod(this.page - 1, 2);
 		if (this.focus == Focus.INVENTORY && rt && !this.previousRT) this.page = Math.floorMod(this.page + 1, 2);
 
@@ -99,16 +104,21 @@ public final class RadialCraftingScreen extends Screen {
 		boolean y = this.controller.pressed(config.binding(ControllerAction.INVENTORY_TAKE_RESULT));
 		boolean dpad = this.controller.pressed(config.binding(ControllerAction.INVENTORY_TRANSFER_HOTBAR));
 		if (a && !this.previousA && this.focus == Focus.HOTBAR && this.hotbarPage == 1) {
+			this.aTransferAcceleration.amount(false, this.previousA);
 			config.setStartStopMining(!config.startStopMining());
 		} else if (a && !this.previousA && this.focus == Focus.CRAFTING && this.leftPage == LeftPage.RECIPES) {
+			this.aTransferAcceleration.amount(false, this.previousA);
 			this.placeSelectedRecipe();
-		} else if (a && !this.previousA && this.leftPage != LeftPage.RECIPES) {
+		} else if (this.leftPage != LeftPage.RECIPES) {
 			int crafting = 1 + this.craftCursor;
 			int inventory = this.inventorySlot();
-			boolean fromCrafting = this.focus == Focus.CRAFTING
+			int amount = this.aTransferAcceleration.amount(a, this.previousA);
+			if (a && !this.previousA) this.aFromCrafting = this.focus == Focus.CRAFTING
 					? !this.menu.getSlot(crafting).getItem().isEmpty()
 					: this.focus == Focus.INVENTORY && this.menu.getSlot(inventory).getItem().isEmpty();
-			this.moveOne(crafting, inventory, fromCrafting);
+			for (int i = 0; i < amount; i++) this.moveOne(crafting, inventory, this.aFromCrafting);
+		} else {
+			this.aTransferAcceleration.amount(false, this.previousA);
 		}
 		this.handleCraftResult(y);
 		if (this.focus != Focus.HOTBAR || this.hotbarPage == 0) this.handleDpadTransfer(dpad);
@@ -123,7 +133,7 @@ public final class RadialCraftingScreen extends Screen {
 	}
 
 	private void handleDpadTransfer(boolean pressed) {
-		long now = System.nanoTime();
+		int amount = this.dpadTransferAcceleration.amount(pressed, this.previousDpad);
 		int inventory = this.inventorySlot();
 		int hotbar = 37 + this.hotbarCursor;
 		if (pressed && !this.previousDpad) {
@@ -132,12 +142,8 @@ public final class RadialCraftingScreen extends Screen {
 					: this.focus == Focus.INVENTORY
 							? !this.menu.getSlot(inventory).getItem().isEmpty()
 							: true;
-			this.moveOne(inventory, hotbar, this.dpadFromInventory);
-			this.nextDpadRepeat = now + INITIAL_REPEAT_DELAY;
-		} else if (pressed && now >= this.nextDpadRepeat) {
-			this.moveOne(inventory, hotbar, this.dpadFromInventory);
-			this.nextDpadRepeat = now + REPEAT_INTERVAL;
 		}
+		for (int i = 0; i < amount; i++) this.moveOne(inventory, hotbar, this.dpadFromInventory);
 	}
 
 	private void updateCraftCursor(float x, float y) {
