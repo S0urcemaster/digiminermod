@@ -59,6 +59,9 @@ public final class RadialInventoryScreen extends Screen {
 	private boolean previousDpadDown;
 	private boolean previousA;
 	private boolean previousY;
+	private boolean previousX;
+	private boolean leftSortDescending;
+	private boolean inventorySortDescending;
 	private boolean dpadFromInventory;
 	private boolean aFromEquipment;
 	private long nextDpadRepeat;
@@ -130,6 +133,17 @@ public final class RadialInventoryScreen extends Screen {
 			this.handleATransfer(secondaryTransfer);
 		}
 		this.handleCraftResult(takeResult);
+		boolean sort = this.controller.pressed(config.binding(ControllerAction.INVENTORY_SORT));
+		if (sort && !this.previousX) {
+			if (this.activeRing == ActiveRing.INVENTORY) {
+				ContainerSorter.sort(this.minecraft.player.inventoryMenu, InventoryMenu.INV_SLOT_START, 27,
+						this.inventorySortDescending);
+				this.inventorySortDescending = !this.inventorySortDescending;
+			} else if (this.activeRing == ActiveRing.LEFT && this.leftPage == LeftPage.CRAFTING) {
+				ContainerSorter.sort(this.minecraft.player.inventoryMenu, 1, 4, this.leftSortDescending);
+				this.leftSortDescending = !this.leftSortDescending;
+			}
+		}
 
 		this.previousLeftBumper = leftBumper;
 		this.previousRightBumper = rightBumper;
@@ -138,6 +152,7 @@ public final class RadialInventoryScreen extends Screen {
 		this.previousDpadDown = primaryTransfer;
 		this.previousA = secondaryTransfer;
 		this.previousY = takeResult;
+		this.previousX = sort;
 		this.refreshRecipeSuggestions();
 	}
 
@@ -212,8 +227,10 @@ public final class RadialInventoryScreen extends Screen {
 		int amount = this.dpadTransferAcceleration.amount(pressed, this.previousDpadDown);
 		if (pressed && !this.previousDpadDown) {
 			this.dpadFromInventory = switch (this.activeRing) {
-				case HOTBAR -> this.menuStack(this.hotbarMenuSlot()).isEmpty();
-				case INVENTORY -> !this.menuStack(this.inventoryMenuSlot()).isEmpty();
+				case HOTBAR -> !ItemTransferAcceleration.isFull(
+						this.minecraft.player.inventoryMenu.getSlot(this.hotbarMenuSlot()));
+				case INVENTORY -> ItemTransferAcceleration.isFull(
+						this.minecraft.player.inventoryMenu.getSlot(this.inventoryMenuSlot()));
 				case LEFT -> true;
 			};
 		}
@@ -227,8 +244,10 @@ public final class RadialInventoryScreen extends Screen {
 		if (pressed && !this.previousA) {
 			if (this.leftPage == LeftPage.RECIPES) return;
 			this.aFromEquipment = switch (this.activeRing) {
-				case LEFT -> !this.menuStack(this.leftMenuSlot()).isEmpty();
-				case INVENTORY -> this.menuStack(this.inventoryMenuSlot()).isEmpty();
+				case LEFT -> ItemTransferAcceleration.isFull(
+						this.minecraft.player.inventoryMenu.getSlot(this.leftMenuSlot()));
+				case INVENTORY -> !ItemTransferAcceleration.isFull(
+						this.minecraft.player.inventoryMenu.getSlot(this.inventoryMenuSlot()));
 				case HOTBAR -> false;
 			};
 		}
@@ -241,11 +260,12 @@ public final class RadialInventoryScreen extends Screen {
 	private void handleCraftResult(boolean pressed) {
 		if (this.leftPage != LeftPage.CRAFTING) return;
 		long now = System.nanoTime();
+		int targetSlot = this.activeRing == ActiveRing.HOTBAR ? this.hotbarMenuSlot() : this.inventoryMenuSlot();
 		if (pressed && !this.previousY) {
-			this.takeCraftResult(InventoryMenu.RESULT_SLOT, this.inventoryMenuSlot());
+			this.takeCraftResult(InventoryMenu.RESULT_SLOT, targetSlot);
 			this.nextYRepeat = now + INITIAL_REPEAT_DELAY;
 		} else if (pressed && now >= this.nextYRepeat) {
-			this.takeCraftResult(InventoryMenu.RESULT_SLOT, this.inventoryMenuSlot());
+			this.takeCraftResult(InventoryMenu.RESULT_SLOT, targetSlot);
 			this.nextYRepeat = now + REPEAT_INTERVAL;
 		}
 	}
@@ -264,29 +284,10 @@ public final class RadialInventoryScreen extends Screen {
 	}
 
 	private void moveOne(int firstSlot, int secondSlot, boolean fromFirst) {
-		if (this.minecraft == null || this.minecraft.player == null || this.minecraft.gameMode == null) {
-			return;
-		}
-
+		if (this.minecraft == null || this.minecraft.player == null) return;
 		int sourceIndex = fromFirst ? firstSlot : secondSlot;
 		int targetIndex = fromFirst ? secondSlot : firstSlot;
-		Slot sourceSlot = this.minecraft.player.inventoryMenu.getSlot(sourceIndex);
-		Slot targetSlot = this.minecraft.player.inventoryMenu.getSlot(targetIndex);
-		ItemStack source = sourceSlot.getItem();
-		ItemStack target = targetSlot.getItem();
-		if (source.isEmpty() || !sourceSlot.mayPickup(this.minecraft.player) || !targetSlot.mayPlace(source)
-				|| (!target.isEmpty() && !ItemStack.isSameItemSameComponents(source, target))
-				|| (!target.isEmpty() && target.getCount() >= targetSlot.getMaxStackSize(source))) {
-			return;
-		}
-
-		int containerId = this.minecraft.player.inventoryMenu.containerId;
-		this.minecraft.gameMode.handleContainerInput(
-				containerId, sourceIndex, 0, ContainerInput.PICKUP, this.minecraft.player);
-		this.minecraft.gameMode.handleContainerInput(
-				containerId, targetIndex, 1, ContainerInput.PICKUP, this.minecraft.player);
-		this.minecraft.gameMode.handleContainerInput(
-				containerId, sourceIndex, 0, ContainerInput.PICKUP, this.minecraft.player);
+		ItemTransferAcceleration.transferOne(this.minecraft.player.inventoryMenu, sourceIndex, targetIndex);
 	}
 
 	@Override
@@ -597,6 +598,7 @@ public final class RadialInventoryScreen extends Screen {
 		this.previousDpadDown = false;
 		this.previousA = false;
 		this.previousY = false;
+		this.previousX = false;
 	}
 
 	private static double normalizeAngle(double angle) {

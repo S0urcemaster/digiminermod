@@ -111,6 +111,7 @@ public final class DigiMinerMod implements ModInitializer {
 	public void onInitialize() {
 		FabricDefaultAttributeRegistry.register(DRONE, DroneEntity.createAttributes());
 		DroneNetworking.registerServer();
+		InventoryNetworking.registerServer();
 		AttackBlockCallback.EVENT.register((player, level, hand, pos, direction) -> {
 			if (hand != net.minecraft.world.InteractionHand.MAIN_HAND || !level.getBlockState(pos).is(DRONE_BLOCK)) {
 				return net.minecraft.world.InteractionResult.PASS;

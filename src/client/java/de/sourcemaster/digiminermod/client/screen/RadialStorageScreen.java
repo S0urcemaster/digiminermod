@@ -1,5 +1,6 @@
 package de.sourcemaster.digiminermod.client.screen;
 
+import de.sourcemaster.digiminermod.InventoryNetworking;
 import de.sourcemaster.digiminermod.client.config.DigiMinerConfig;
 import de.sourcemaster.digiminermod.client.input.ControllerAction;
 import de.sourcemaster.digiminermod.client.input.ControllerSupport;
@@ -11,6 +12,7 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.item.ItemStack;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 
 /** Controller-first screen shared by all vanilla storage-only containers. */
 public class RadialStorageScreen<T extends AbstractContainerMenu> extends Screen implements MenuAccess<T> {
@@ -24,8 +26,10 @@ public class RadialStorageScreen<T extends AbstractContainerMenu> extends Screen
 	private final int[] storageSlotOrder;
 	private Focus focus = Focus.STORAGE;
 	private int storagePage, storageCursor, inventoryPage, inventoryCursor, hotbarCursor, hotbarPage;
-	private boolean previousA, previousDpad, previousLB, previousRB, previousLT, previousRT;
+	private boolean previousA, previousDpad, previousLB, previousRB, previousLT, previousRT, previousX;
+	private boolean storageSortDescending, inventorySortDescending;
 	private boolean aFromStorage, dpadFromInventory;
+	private int dpadFirstSlot, dpadSecondSlot;
 	private long nextARepeat, nextDpadRepeat;
 	private final ItemTransferAcceleration aTransferAcceleration = new ItemTransferAcceleration();
 	private final ItemTransferAcceleration dpadTransferAcceleration = new ItemTransferAcceleration();
@@ -77,8 +81,18 @@ public class RadialStorageScreen<T extends AbstractContainerMenu> extends Screen
 		} else this.handleATransfer(a);
 		boolean dpad = pad.pressed(config.binding(ControllerAction.INVENTORY_TRANSFER_HOTBAR));
 		if (this.hotbarPage == 0) this.handleDpadTransfer(dpad);
+		boolean x = pad.pressed(config.binding(ControllerAction.INVENTORY_SORT));
+		if (x && !this.previousX) {
+			if (this.focus == Focus.STORAGE) {
+				ContainerSorter.sort(this.menu, 0, this.storageSlots, this.storageSortDescending);
+				this.storageSortDescending = !this.storageSortDescending;
+			} else if (this.focus == Focus.INVENTORY) {
+				ContainerSorter.sort(this.menu, this.storageSlots, 27, this.inventorySortDescending);
+				this.inventorySortDescending = !this.inventorySortDescending;
+			}
+		}
 		this.previousA = a; this.previousDpad = dpad; this.previousLB = lb; this.previousRB = rb;
-		this.previousLT = lt; this.previousRT = rt;
+		this.previousLT = lt; this.previousRT = rt; this.previousX = x;
 	}
 
 	private void updateStick(float x, float y, Focus target) {
@@ -99,8 +113,8 @@ public class RadialStorageScreen<T extends AbstractContainerMenu> extends Screen
 		int storage = this.storageSlot(), inventory = this.inventorySlot();
 		if (pressed && !this.previousA) {
 			this.aFromStorage = switch (this.focus) {
-				case STORAGE -> !this.menu.getSlot(storage).getItem().isEmpty();
-				case INVENTORY -> this.menu.getSlot(inventory).getItem().isEmpty();
+				case STORAGE -> ItemTransferAcceleration.isFull(this.menu.getSlot(storage));
+				case INVENTORY -> !ItemTransferAcceleration.isFull(this.menu.getSlot(inventory));
 				case HOTBAR -> false;
 			};
 		}
@@ -109,24 +123,22 @@ public class RadialStorageScreen<T extends AbstractContainerMenu> extends Screen
 
 	private void handleDpadTransfer(boolean pressed) {
 		int amount = this.dpadTransferAcceleration.amount(pressed, this.previousDpad);
-		int inventory = this.inventorySlot(), hotbar = this.hotbarSlot();
 		if (pressed && !this.previousDpad) {
+			this.dpadFirstSlot = this.focus == Focus.STORAGE ? this.storageSlot() : this.inventorySlot();
+			this.dpadSecondSlot = this.hotbarSlot();
 			this.dpadFromInventory = switch (this.focus) {
-				case HOTBAR -> this.menu.getSlot(hotbar).getItem().isEmpty();
-				case INVENTORY -> !this.menu.getSlot(inventory).getItem().isEmpty();
-				case STORAGE -> true;
+				case HOTBAR -> !ItemTransferAcceleration.isFull(this.menu.getSlot(this.dpadSecondSlot));
+				case INVENTORY, STORAGE -> ItemTransferAcceleration.isFull(this.menu.getSlot(this.dpadFirstSlot));
 			};
 		}
-		for (int i = 0; i < amount; i++) this.moveOne(inventory, hotbar, this.dpadFromInventory);
+		for (int i = 0; i < amount; i++) this.moveOne(
+				this.dpadFirstSlot, this.dpadSecondSlot, this.dpadFromInventory);
 	}
 
 	private void moveOne(int first, int second, boolean fromFirst) {
 		if (this.minecraft == null || this.minecraft.player == null || this.minecraft.gameMode == null) return;
 		int source = fromFirst ? first : second, target = fromFirst ? second : first;
-		if (this.menu.getSlot(source).getItem().isEmpty()) return;
-		this.minecraft.gameMode.handleContainerInput(this.menu.containerId, source, 0, ContainerInput.PICKUP, this.minecraft.player);
-		this.minecraft.gameMode.handleContainerInput(this.menu.containerId, target, 1, ContainerInput.PICKUP, this.minecraft.player);
-		this.minecraft.gameMode.handleContainerInput(this.menu.containerId, source, 0, ContainerInput.PICKUP, this.minecraft.player);
+		ItemTransferAcceleration.transferOne(this.menu, source, target);
 	}
 
 	private int storagePageCount() { return (this.storageSlots + PAGE_SIZE - 1) / PAGE_SIZE; }
@@ -214,7 +226,7 @@ public class RadialStorageScreen<T extends AbstractContainerMenu> extends Screen
 				this.width / 2, top - 12, 0xFFB8C4D6);
 	}
 
-	private void resetButtons() { this.previousA = this.previousDpad = this.previousLB = this.previousRB = this.previousLT = this.previousRT = false; }
+	private void resetButtons() { this.previousA = this.previousDpad = this.previousLB = this.previousRB = this.previousLT = this.previousRT = this.previousX = false; }
 	@Override public boolean isPauseScreen() { return false; }
 	@Override public void onClose() { if (this.minecraft != null && this.minecraft.player != null) this.minecraft.player.closeContainer(); }
 }

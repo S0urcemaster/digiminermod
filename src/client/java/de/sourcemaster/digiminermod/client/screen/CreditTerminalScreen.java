@@ -19,8 +19,10 @@ public final class CreditTerminalScreen extends Screen implements MenuAccess<Cre
 	private final CreditTerminalMenu menu;
 	private Focus focus = Focus.TERMINAL;
 	private int terminalCursor, inventoryPage, inventoryCursor, hotbarCursor, hotbarPage;
-	private boolean previousA, previousDpad, previousLB, previousRB, previousLT, previousRT;
+	private boolean previousA, previousDpad, previousLB, previousRB, previousLT, previousRT, previousX;
+	private boolean terminalSortDescending, inventorySortDescending;
 	private boolean aFromTerminal, dpadFromOther;
+	private int dpadFirstSlot, dpadSecondSlot;
 	private long nextARepeat, nextDpadRepeat;
 	private final ItemTransferAcceleration aTransferAcceleration = new ItemTransferAcceleration();
 	private final ItemTransferAcceleration dpadTransferAcceleration = new ItemTransferAcceleration();
@@ -52,8 +54,18 @@ public final class CreditTerminalScreen extends Screen implements MenuAccess<Cre
 		} else this.handleATransfer(a);
 		boolean dpad = pad.pressed(config.binding(ControllerAction.INVENTORY_TRANSFER_HOTBAR));
 		if (this.hotbarPage == 0) this.handleDpadTransfer(dpad);
+		boolean x = pad.pressed(config.binding(ControllerAction.INVENTORY_SORT));
+		if (x && !this.previousX) {
+			if (this.focus == Focus.TERMINAL) {
+				ContainerSorter.sort(this.menu, 0, 14, this.terminalSortDescending);
+				this.terminalSortDescending = !this.terminalSortDescending;
+			} else if (this.focus == Focus.INVENTORY) {
+				ContainerSorter.sort(this.menu, CreditTerminalMenu.PLAYER_MAIN_START, 27, this.inventorySortDescending);
+				this.inventorySortDescending = !this.inventorySortDescending;
+			}
+		}
 		this.previousA = a; this.previousDpad = dpad; this.previousLB = lb; this.previousRB = rb;
-		this.previousLT = lt; this.previousRT = rt;
+		this.previousLT = lt; this.previousRT = rt; this.previousX = x;
 	}
 
 	private void updateStick(float x, float y, Focus target) {
@@ -73,8 +85,8 @@ public final class CreditTerminalScreen extends Screen implements MenuAccess<Cre
 		int amount = this.aTransferAcceleration.amount(pressed, this.previousA);
 		if (pressed && !this.previousA) {
 			this.aFromTerminal = switch (this.focus) {
-				case TERMINAL -> this.menu.getSlot(this.terminalCursor).getItem().isEmpty() ? false : true;
-				case INVENTORY -> this.menu.getSlot(this.inventorySlot()).getItem().isEmpty();
+				case TERMINAL -> ItemTransferAcceleration.isFull(this.menu.getSlot(this.terminalCursor));
+				case INVENTORY -> !ItemTransferAcceleration.isFull(this.menu.getSlot(this.inventorySlot()));
 				case HOTBAR -> false;
 			};
 		}
@@ -83,25 +95,21 @@ public final class CreditTerminalScreen extends Screen implements MenuAccess<Cre
 
 	private void handleDpadTransfer(boolean pressed) {
 		int amount = this.dpadTransferAcceleration.amount(pressed, this.previousDpad);
-		int other = this.inventorySlot();
-		int hotbar = CreditTerminalMenu.HOTBAR_START + this.hotbarCursor;
 		if (pressed && !this.previousDpad) {
+			this.dpadFirstSlot = this.focus == Focus.TERMINAL ? this.terminalCursor : this.inventorySlot();
+			this.dpadSecondSlot = CreditTerminalMenu.HOTBAR_START + this.hotbarCursor;
 			this.dpadFromOther = this.focus == Focus.HOTBAR
-					? this.menu.getSlot(hotbar).getItem().isEmpty()
-					: this.focus == Focus.INVENTORY
-							? !this.menu.getSlot(other).getItem().isEmpty()
-							: true;
+					? !ItemTransferAcceleration.isFull(this.menu.getSlot(this.dpadSecondSlot))
+					: ItemTransferAcceleration.isFull(this.menu.getSlot(this.dpadFirstSlot));
 		}
-		for (int i = 0; i < amount; i++) this.moveOne(other, hotbar, this.dpadFromOther);
+		for (int i = 0; i < amount; i++) this.moveOne(
+				this.dpadFirstSlot, this.dpadSecondSlot, this.dpadFromOther);
 	}
 
 	private void moveOne(int first, int second, boolean fromFirst) {
 		if (this.minecraft == null || this.minecraft.player == null || this.minecraft.gameMode == null) return;
 		int source = fromFirst ? first : second, target = fromFirst ? second : first;
-		if (this.menu.getSlot(source).getItem().isEmpty()) return;
-		this.minecraft.gameMode.handleContainerInput(this.menu.containerId, source, 0, ContainerInput.PICKUP, this.minecraft.player);
-		this.minecraft.gameMode.handleContainerInput(this.menu.containerId, target, 1, ContainerInput.PICKUP, this.minecraft.player);
-		this.minecraft.gameMode.handleContainerInput(this.menu.containerId, source, 0, ContainerInput.PICKUP, this.minecraft.player);
+		ItemTransferAcceleration.transferOne(this.menu, source, target);
 	}
 
 	private int inventorySlot() { return CreditTerminalMenu.PLAYER_MAIN_START + this.inventoryPage * 14 + this.inventoryCursor; }
@@ -177,7 +185,7 @@ public final class CreditTerminalScreen extends Screen implements MenuAccess<Cre
 				this.width / 2, top - 12, 0xFFB8C4D6);
 	}
 
-	private void resetButtons() { this.previousA = this.previousDpad = this.previousLB = this.previousRB = this.previousLT = this.previousRT = false; }
+	private void resetButtons() { this.previousA = this.previousDpad = this.previousLB = this.previousRB = this.previousLT = this.previousRT = this.previousX = false; }
 	@Override public boolean isPauseScreen() { return false; }
 	@Override public void onClose() { if (this.minecraft != null && this.minecraft.player != null) this.minecraft.player.closeContainer(); }
 }

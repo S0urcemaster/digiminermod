@@ -29,8 +29,10 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 	private final DroneMenu menu;
 	private Focus focus = Focus.DRONE;
 	private int leftPage, mode, droneCursor, inventoryPage, inventoryCursor, hotbarCursor, hotbarPage, optionCursor;
-	private boolean previousA, previousDpad, previousLB, previousRB, previousLT, previousRT;
+	private boolean previousA, previousDpad, previousLB, previousRB, previousLT, previousRT, previousX;
+	private boolean droneSortDescending, inventorySortDescending;
 	private boolean dpadFromInventory;
+	private int dpadFirstSlot, dpadSecondSlot;
 	private long nextDpadRepeat;
 	private final ItemTransferAcceleration aTransferAcceleration = new ItemTransferAcceleration();
 	private final ItemTransferAcceleration dpadTransferAcceleration = new ItemTransferAcceleration();
@@ -137,7 +139,17 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 		}
 		boolean dpad = pad.pressed(config.binding(ControllerAction.INVENTORY_TRANSFER_HOTBAR));
 		if (this.hotbarPage == 0) this.handleHotbarTransfer(dpad);
-		this.previousA = a; this.previousDpad = dpad; this.previousLB = lb; this.previousRB = rb; this.previousLT = lt; this.previousRT = rt;
+		boolean x = pad.pressed(config.binding(ControllerAction.INVENTORY_SORT));
+		if (x && !this.previousX) {
+			if (this.focus == Focus.DRONE && this.leftPage < 2) {
+				ContainerSorter.sort(this.menu, 0, DroneMenu.DRONE_SLOTS, this.droneSortDescending);
+				this.droneSortDescending = !this.droneSortDescending;
+			} else if (this.focus == Focus.INVENTORY) {
+				ContainerSorter.sort(this.menu, DroneMenu.PLAYER_MAIN_START, 27, this.inventorySortDescending);
+				this.inventorySortDescending = !this.inventorySortDescending;
+			}
+		}
+		this.previousA = a; this.previousDpad = dpad; this.previousLB = lb; this.previousRB = rb; this.previousLT = lt; this.previousRT = rt; this.previousX = x;
 	}
 
 	private void updateLeft(float x, float y) {
@@ -286,8 +298,9 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 		}
 		this.aTransferSecond = inventory;
 		this.aTransferFromFirst = this.focus == Focus.DRONE
-				? !this.menu.getSlot(this.aTransferFirst).getItem().isEmpty()
-				: this.focus == Focus.INVENTORY && this.menu.getSlot(inventory).getItem().isEmpty();
+				? ItemTransferAcceleration.isFull(this.menu.getSlot(this.aTransferFirst))
+				: this.focus == Focus.INVENTORY
+						? !ItemTransferAcceleration.isFull(this.menu.getSlot(inventory)) : false;
 	}
 
 	private boolean hasCartridge(int selectedMode) {
@@ -319,25 +332,22 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 
 	private void handleHotbarTransfer(boolean pressed) {
 		int amount = this.dpadTransferAcceleration.amount(pressed, this.previousDpad);
-		int other = this.inventorySlot();
-		int hotbar = DroneMenu.HOTBAR_START + this.hotbarCursor;
 		if (pressed && !this.previousDpad) {
+			this.dpadFirstSlot = this.focus == Focus.DRONE && this.leftPage < 2
+					? this.droneSlot() : this.inventorySlot();
+			this.dpadSecondSlot = DroneMenu.HOTBAR_START + this.hotbarCursor;
 			this.dpadFromInventory = this.focus == Focus.HOTBAR
-					? this.menu.getSlot(hotbar).getItem().isEmpty()
-					: this.focus == Focus.INVENTORY
-							? !this.menu.getSlot(other).getItem().isEmpty()
-							: true;
+					? !ItemTransferAcceleration.isFull(this.menu.getSlot(this.dpadSecondSlot))
+					: ItemTransferAcceleration.isFull(this.menu.getSlot(this.dpadFirstSlot));
 		}
-		for (int i = 0; i < amount; i++) this.moveOne(other, hotbar, this.dpadFromInventory);
+		for (int i = 0; i < amount; i++) this.moveOne(
+				this.dpadFirstSlot, this.dpadSecondSlot, this.dpadFromInventory);
 	}
 
 	private void moveOne(int first, int second, boolean fromFirst) {
 		if (this.minecraft == null || this.minecraft.player == null || this.minecraft.gameMode == null) return;
 		int source = fromFirst ? first : second, target = fromFirst ? second : first;
-		if (this.menu.getSlot(source).getItem().isEmpty()) return;
-		this.minecraft.gameMode.handleContainerInput(this.menu.containerId, source, 0, ContainerInput.PICKUP, this.minecraft.player);
-		this.minecraft.gameMode.handleContainerInput(this.menu.containerId, target, 1, ContainerInput.PICKUP, this.minecraft.player);
-		this.minecraft.gameMode.handleContainerInput(this.menu.containerId, source, 0, ContainerInput.PICKUP, this.minecraft.player);
+		ItemTransferAcceleration.transferOne(this.menu, source, target);
 	}
 
 	private int droneSlot() { return this.leftPage * PAGE_SIZE + this.droneCursor; }

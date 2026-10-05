@@ -1,71 +1,74 @@
 # Digi Miner Mod
 
-## Idee
+![Digi Miner Mod](2026-10-05_17.03.46.png)
 
-Hallo ! Nach diesem Absatz beginnt KI. Ich schreibe hier ganz locker eine Mod für Minecraft, einfach indem ich natürlich beschreibe, was ich will. Ich schreibe keine einzige Zeile Code. Ich sage, was ich will und committe
+## Idea
 
-Sage, was ich will und committe
+Hello! After this paragraph, AI takes over. I am casually writing a Minecraft mod simply by describing what I want in natural language. I do not write a single line of code. I say what I want and commit it.
+
+Say what I want and commit it.
 
 ### Plot
 
-"Du bist ein dreckiger Minenarbeiter, hast dein ganzes Geld verjubelt und wurdest auf diesen erbärmlichen Planeten geschickt, um ihn restlos auszubeueten ! Tue, was nötig ist, um Kasse zu machen ! Ich meine alles, was nötig ist ! Nur dafür, was am Ende rauspringt, wird man dich wieder unter Deinesgleichen dulden ! Man war sogar so gnädig, dir dafür eine Bergbaueinheit zur Verfügung zu stellen - deshalb: mach dir diesen erbärmlichen Planeten Untertan und schicke verdammt nochmal Geld nach Hause !" - Deine Frau
+"You are a filthy miner. You gambled away all your money and were sent to this miserable planet to exploit it down to the last resource! Do whatever it takes to make money! I mean absolutely whatever it takes! Whether you will ever be tolerated among your peers again depends entirely on what you bring home! They were even gracious enough to provide you with a mining unit—so subjugate this wretched planet and send some damn money home!" — Your wife
 
 ### Features
 
-Ein paar Dinge an Vanilla Minecraft finde ich nicht gut und die Controller Unterstützung ist lediglich auf die Maussteuerung aufgesetzt
+There are a few things I do not like about vanilla Minecraft, and its controller support is merely layered on top of mouse controls.
 
-Deshalb habe ich mir diese Mod für meinen persönlichen Geschmack geschrieben, die die bisherige Bedienung und das UI verwirft und ein paar kleine große Schwächen auszubügeln versucht
+That is why I made this mod for my personal taste. It discards the existing controls and UI and attempts to iron out a few small—and large—weaknesses.
 
-#### Radikale Steuerung für den Controller
+#### Radical Controller Controls
 
-Das Standard-Inventargitter ist für Controller einfach langsam. Dafür habe ich ein Radialmenü hergenommen, das gut die Hälfte einer Kiste/ des Spielerinventars darstellen kann
+The standard inventory grid is simply slow to use with a controller. I replaced it with a radial menu that can display roughly half a chest or half the player inventory at once.
 
-Weitere Bedienhinweise im Spiel
+Further instructions are available in the game.
 
-#### Änderungen Welt
+#### World Changes
 
-- Kein Bäume Fällen mit der Hand. Es gibt dafür eine Axt zu Spielbeginn
-- Bergbau ab Eisenspitzhacke. Dafür gibt es eine Eisenspitzhacke zu Spielbeginn. Also keine Holz-/ Steinspitzhacke
+- Trees cannot be felled by hand. You receive an axe at the start of the game.
+- Mining starts with an iron pickaxe. You receive one at the start, and wooden and stone pickaxes are unavailable.
 
-Aus diesem Umstand ergibt sich eine gewisse notwendige Sparsamkeit zu Spielbeginn und das Problem: Eisen mit nur einer Spitzhacke zu finden
+This creates a need for some careful resource management at the beginning of the game—and the problem of finding iron with only a single pickaxe.
 
 #### Scanner
 
-Ich will im Survival Mode große Bauwerke errichten mit gefarmten Rohstoffen. Dafür braucht man irgendwann Verzauberungen und für viele Verzauberungen eine Mob Farm. Im Survival eine gute Mob Farm zu finden ist aber ungefähr wie Lotto spielen. Deshalb wird man Scanner bauen können und zu Beginn einen einfachen Eisendetektor im Gepäck haben
+I want to construct large buildings in Survival mode using farmed resources. Eventually that requires enchantments, and many enchantments require a mob farm. Finding a good place for a mob farm in Survival is roughly like winning the lottery. That is why scanners will be craftable, while a simple iron detector is available from the beginning.
 
-#### Versteckte/ nicht benannte Funktionen
+#### Hidden or Unnamed Features
 
-Ich habe auf Kadcon gewütet wie ein Irrer ! Meine Minecraft-Hochzeit. Da habe ich mir ein kleines Macro gebaut, das die Maustaste (damals noch) festhält und ich immer nur "Ein" und "Aus" schaltet, damit ich nicht immer runterhalten muss
-Dafür gibt es eine zweite Seite hinter der Hotbar wenn das Inventar geöffnet ist. (Die Hotbar verwenden, damit sie Fokus hat, dann LT/RT)
+I went absolutely wild on Kadcon during my Minecraft glory days. Back then, I made a small macro that held down the mouse button and only required me to switch it on and off, so I would not have to keep holding it myself.
 
-- Mine lock :: Graben (meist RT) mit gedrückt halten oder per Ein-/Ausschalten
-- Maybe more
+For this, there is a second page behind the hotbar while the inventory is open. Use the hotbar so it has focus, then press LT or RT.
 
-#### Bergbau
+- Mine lock: mine—usually with RT—by holding the button or by switching mining on and off.
+- Maybe more.
 
-Ich hatte eine großartige Zeit mit Buildcraft, der Quarry und den riesengroßen Löchern, die sie in der Landschaft hinterlassen hat. Ich mag Bergbau ! Ich mag Massen von Items, große Zahlen und Automatisierung
+#### Mining
 
-Das meiste davon ist in Vanilla Minecraft möglich, aber man baut immer noch Block für Block ab. Da ist das Mining-Spiel Minecraft zu Ende. Deswegen will ich da mit ein bisschen Technik nachhelfen
+I had a wonderful time with BuildCraft, its quarry, and the enormous holes it left in the landscape. I like mining! I like masses of items, large numbers, and automation.
+
+Most of that is possible in vanilla Minecraft, but blocks are still mined one at a time. That is where Minecraft's mining game ends, so I want to help it along with a little technology.
 
 
 
-Ab hier nun tat eine brave KI wie ihr aufgetragen wurde:
+From this point onward, a well-behaved AI did as it was told:
 
-Eine von Grund auf entwickelte Minecraft-Mod fuer Fabric 26.2.
+A Minecraft mod built from scratch for Fabric 26.2.
 
-## Entwicklung
+## Development
 
 - JDK 25
 - Minecraft 26.2
-- Fabric Loader und Fabric API
+- Fabric Loader and Fabric API
 
-Minecraft im Entwicklungsmodus starten:
+Run Minecraft in development mode:
 
 ```bash
 ./gradlew runClient
 ```
 
-Die Mod bauen:
+Build the mod:
 
 ```bash
 ./gradlew build

@@ -45,6 +45,9 @@ public final class RadialCraftingScreen extends Screen {
 	private Item lastRecipeFilter = Items.AIR;
 	private boolean previousA;
 	private boolean previousY;
+	private boolean previousX;
+	private boolean craftingSortDescending;
+	private boolean inventorySortDescending;
 	private boolean previousDpad;
 	private boolean previousLB;
 	private boolean previousRB;
@@ -114,17 +117,29 @@ public final class RadialCraftingScreen extends Screen {
 			int inventory = this.inventorySlot();
 			int amount = this.aTransferAcceleration.amount(a, this.previousA);
 			if (a && !this.previousA) this.aFromCrafting = this.focus == Focus.CRAFTING
-					? !this.menu.getSlot(crafting).getItem().isEmpty()
-					: this.focus == Focus.INVENTORY && this.menu.getSlot(inventory).getItem().isEmpty();
+					? ItemTransferAcceleration.isFull(this.menu.getSlot(crafting))
+					: this.focus == Focus.INVENTORY
+							? !ItemTransferAcceleration.isFull(this.menu.getSlot(inventory)) : false;
 			for (int i = 0; i < amount; i++) this.moveOne(crafting, inventory, this.aFromCrafting);
 		} else {
 			this.aTransferAcceleration.amount(false, this.previousA);
 		}
 		this.handleCraftResult(y);
 		if (this.focus != Focus.HOTBAR || this.hotbarPage == 0) this.handleDpadTransfer(dpad);
+		boolean x = this.controller.pressed(config.binding(ControllerAction.INVENTORY_SORT));
+		if (x && !this.previousX) {
+			if (this.focus == Focus.CRAFTING && this.leftPage == LeftPage.CRAFTING) {
+				ContainerSorter.sort(this.menu, 1, 9, this.craftingSortDescending);
+				this.craftingSortDescending = !this.craftingSortDescending;
+			} else if (this.focus == Focus.INVENTORY) {
+				ContainerSorter.sort(this.menu, 10, 27, this.inventorySortDescending);
+				this.inventorySortDescending = !this.inventorySortDescending;
+			}
+		}
 		this.previousA = a;
 		this.previousY = y;
 		this.previousDpad = dpad;
+		this.previousX = x;
 		this.previousLB = lb;
 		this.previousRB = rb;
 		this.previousLT = lt;
@@ -138,9 +153,9 @@ public final class RadialCraftingScreen extends Screen {
 		int hotbar = 37 + this.hotbarCursor;
 		if (pressed && !this.previousDpad) {
 			this.dpadFromInventory = this.focus == Focus.HOTBAR
-					? this.menu.getSlot(hotbar).getItem().isEmpty()
+					? !ItemTransferAcceleration.isFull(this.menu.getSlot(hotbar))
 					: this.focus == Focus.INVENTORY
-							? !this.menu.getSlot(inventory).getItem().isEmpty()
+							? ItemTransferAcceleration.isFull(this.menu.getSlot(inventory))
 							: true;
 		}
 		for (int i = 0; i < amount; i++) this.moveOne(inventory, hotbar, this.dpadFromInventory);
@@ -176,10 +191,7 @@ public final class RadialCraftingScreen extends Screen {
 		if (this.minecraft == null || this.minecraft.player == null || this.minecraft.gameMode == null) return;
 		int source = fromFirst ? first : second;
 		int target = fromFirst ? second : first;
-		if (this.menu.getSlot(source).getItem().isEmpty()) return;
-		this.minecraft.gameMode.handleContainerInput(this.menu.containerId, source, 0, ContainerInput.PICKUP, this.minecraft.player);
-		this.minecraft.gameMode.handleContainerInput(this.menu.containerId, target, 1, ContainerInput.PICKUP, this.minecraft.player);
-		this.minecraft.gameMode.handleContainerInput(this.menu.containerId, source, 0, ContainerInput.PICKUP, this.minecraft.player);
+		ItemTransferAcceleration.transferOne(this.menu, source, target);
 	}
 
 	private void handleCraftResult(boolean pressed) {
@@ -196,13 +208,14 @@ public final class RadialCraftingScreen extends Screen {
 	private void takeCraftResult() {
 		if (this.minecraft == null || this.minecraft.player == null || this.minecraft.gameMode == null) return;
 		ItemStack result = this.menu.getSlot(0).getItem();
-		var target = this.menu.getSlot(this.inventorySlot());
+		int targetSlot = this.focus == Focus.HOTBAR ? 37 + this.hotbarCursor : this.inventorySlot();
+		var target = this.menu.getSlot(targetSlot);
 		ItemStack existing = target.getItem();
 		if (result.isEmpty() || !target.mayPlace(result)
 				|| (!existing.isEmpty() && !ItemStack.isSameItemSameComponents(result, existing))
 				|| existing.getCount() + result.getCount() > target.getMaxStackSize(result)) return;
 		this.minecraft.gameMode.handleContainerInput(this.menu.containerId, 0, 0, ContainerInput.PICKUP, this.minecraft.player);
-		this.minecraft.gameMode.handleContainerInput(this.menu.containerId, this.inventorySlot(), 0,
+		this.minecraft.gameMode.handleContainerInput(this.menu.containerId, targetSlot, 0,
 				ContainerInput.PICKUP, this.minecraft.player);
 	}
 
