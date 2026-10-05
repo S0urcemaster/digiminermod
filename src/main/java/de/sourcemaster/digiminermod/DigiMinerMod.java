@@ -38,13 +38,17 @@ import net.fabricmc.fabric.api.menu.v1.ExtendedMenuType;
 import net.minecraft.world.inventory.MenuType;
 import de.sourcemaster.digiminermod.drone.DroneMenu;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public final class DigiMinerMod implements ModInitializer {
 	public static final String MOD_ID = "digiminermod";
 	private static final String DRONE_LOCATION_TAG = MOD_ID + ".drone_location|";
+	private static final Map<UUID, Long> LAST_DRONE_HIT_TICKS = new HashMap<>();
+	private static final long DRONE_HIT_RELEASE_TICKS = 5;
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 	public static final ResourceKey<Item> SPAWNER_SCANNER_KEY = ResourceKey.create(Registries.ITEM, id("spawner_scanner"));
 	public static final Item SPAWNER_SCANNER = Registry.register(BuiltInRegistries.ITEM, SPAWNER_SCANNER_KEY,
@@ -113,7 +117,11 @@ public final class DigiMinerMod implements ModInitializer {
 			}
 			if (!level.isClientSide() && level.getBlockEntity(pos) instanceof DroneBlockEntity drone
 					&& drone.isOwner(player)) {
-				drone.pushFromHit(direction, player.isShiftKeyDown(), player);
+				long now = level.getGameTime();
+				Long previous = LAST_DRONE_HIT_TICKS.put(player.getUUID(), now);
+				if (previous == null || now - previous > DRONE_HIT_RELEASE_TICKS) {
+					drone.pushFromHit(direction, player.isShiftKeyDown(), player);
+				}
 			}
 			return net.minecraft.world.InteractionResult.SUCCESS;
 		});

@@ -56,12 +56,15 @@ public final class DroneNetworking {
 		@Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
 	}
 
-	public record ScannerPayload(long blockPos, boolean ironNearby, boolean diamondNearby) implements CustomPacketPayload {
+	public record ScannerPayload(long blockPos, boolean ironNearby, int spawnDeltaX, int spawnDeltaY,
+			int spawnDeltaZ) implements CustomPacketPayload {
 		public static final Type<ScannerPayload> TYPE = new Type<>(DigiMinerMod.id("scanner_status"));
 		public static final StreamCodec<RegistryFriendlyByteBuf, ScannerPayload> CODEC = StreamCodec.composite(
 				ByteBufCodecs.LONG, ScannerPayload::blockPos,
 				ByteBufCodecs.BOOL, ScannerPayload::ironNearby,
-				ByteBufCodecs.BOOL, ScannerPayload::diamondNearby,
+				ByteBufCodecs.VAR_INT, ScannerPayload::spawnDeltaX,
+				ByteBufCodecs.VAR_INT, ScannerPayload::spawnDeltaY,
+				ByteBufCodecs.VAR_INT, ScannerPayload::spawnDeltaZ,
 				ScannerPayload::new);
 		@Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
 	}

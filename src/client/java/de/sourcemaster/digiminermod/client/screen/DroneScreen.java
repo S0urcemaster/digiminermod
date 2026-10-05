@@ -396,7 +396,7 @@ public final class DroneScreen extends Screen implements MenuAccess<DroneMenu> {
 				if (this.menu.getSlot(DroneMenu.SCANNER_CARTRIDGE_SLOT).getItem().is(DigiMinerMod.BASIC_SCANNER_CARTRIDGE)) {
 					graphics.centeredText(this.font, "Coordinates I", cx, cy + 18, 0xFFFFD95A);
 					graphics.centeredText(this.font, "Iron I", cx, cy + 28, 0xFFFFD95A);
-					graphics.centeredText(this.font, "Diamond I", cx, cy + 38, 0xFF65E8FF);
+					graphics.centeredText(this.font, "Spawn I", cx, cy + 38, 0xFFFFD95A);
 				}
 				graphics.centeredText(this.font, "4/4", cx, cy + 51, 0xFF9AA4B2);
 			}

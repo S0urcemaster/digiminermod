@@ -77,20 +77,20 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 			if (scannerActive) {
 				if (!drone.damageCartridge(0, 20)) return;
 				boolean ironNearby = false;
-				boolean diamondNearby = false;
-				// The basic cartridge carries Iron I and Diamond I. Both level-I
-				// scanners have radius 3; Diamond II-IV will use 4, 5 and 6.
-				for (BlockPos scan : BlockPos.betweenClosed(pos.offset(-3, -3, -3), pos.offset(3, 3, 3))) {
-					if (scan.distManhattan(pos) > 3) continue;
+				// Iron I scans the complete 9 x 9 x 9 cube around Digi.
+				for (BlockPos scan : BlockPos.betweenClosed(pos.offset(-4, -4, -4), pos.offset(4, 4, 4))) {
 					BlockState scanned = level.getBlockState(scan);
 					if (scanned.is(net.minecraft.world.level.block.Blocks.IRON_ORE)
 							|| scanned.is(net.minecraft.world.level.block.Blocks.DEEPSLATE_IRON_ORE)) ironNearby = true;
-					if (scanned.is(net.minecraft.world.level.block.Blocks.DIAMOND_ORE)
-							|| scanned.is(net.minecraft.world.level.block.Blocks.DEEPSLATE_DIAMOND_ORE)) diamondNearby = true;
-					if (ironNearby && diamondNearby) break;
+					if (ironNearby) break;
 				}
+				var respawnConfig = owner.getRespawnConfig();
+				var respawn = respawnConfig == null
+						? level.getServer().getRespawnData() : respawnConfig.respawnData();
+				BlockPos spawn = respawn.pos();
 				net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(owner,
-						new DroneNetworking.ScannerPayload(pos.asLong(), ironNearby, diamondNearby));
+						new DroneNetworking.ScannerPayload(pos.asLong(), ironNearby,
+								spawn.getX() - pos.getX(), spawn.getY() - pos.getY(), spawn.getZ() - pos.getZ()));
 			}
 		}
 		if (!state.getValue(DroneBlock.LIT)) level.setBlock(pos, state.setValue(DroneBlock.LIT, true), 3);

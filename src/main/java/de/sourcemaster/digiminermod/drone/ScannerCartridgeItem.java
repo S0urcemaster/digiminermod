@@ -17,7 +17,7 @@ public final class ScannerCartridgeItem extends Item {
 			Consumer<Component> text, TooltipFlag flag) {
 		text.accept(Component.literal("Coordinates I").withStyle(ChatFormatting.YELLOW));
 		text.accept(Component.literal("Iron I").withStyle(ChatFormatting.YELLOW));
-		text.accept(Component.literal("Diamond I").withStyle(ChatFormatting.AQUA));
+		text.accept(Component.literal("Spawn I").withStyle(ChatFormatting.YELLOW));
 	}
 
 	@Override public boolean isFoil(ItemStack stack) { return true; }

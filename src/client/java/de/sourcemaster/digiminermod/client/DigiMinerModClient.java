@@ -72,7 +72,8 @@ public final class DigiMinerModClient implements ClientModInitializer {
 		ClientPlayNetworking.registerGlobalReceiver(DroneNetworking.CreditPayload.TYPE,
 				(payload, context) -> CreditHud.setBalance(payload.balance()));
 		ClientPlayNetworking.registerGlobalReceiver(DroneNetworking.ScannerPayload.TYPE,
-				(payload, context) -> ScannerHud.update(payload.blockPos(), payload.ironNearby(), payload.diamondNearby()));
+				(payload, context) -> ScannerHud.update(payload.blockPos(), payload.ironNearby(),
+						payload.spawnDeltaX(), payload.spawnDeltaY(), payload.spawnDeltaZ()));
 		CreditHud creditHud = new CreditHud();
 		HudElementRegistry.addLast(DigiMinerMod.id("credit_hud"),
 				(graphics, deltaTracker) -> creditHud.extract(graphics));

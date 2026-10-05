@@ -7,13 +7,17 @@ import net.minecraft.core.BlockPos;
 public final class ScannerHud {
 	private static BlockPos dronePosition;
 	private static boolean ironNearby;
-	private static boolean diamondNearby;
+	private static int spawnDeltaX;
+	private static int spawnDeltaY;
+	private static int spawnDeltaZ;
 	private static long validUntil;
 
-	public static void update(long packedPosition, boolean iron, boolean diamond) {
+	public static void update(long packedPosition, boolean iron, int deltaX, int deltaY, int deltaZ) {
 		dronePosition = BlockPos.of(packedPosition);
 		ironNearby = iron;
-		diamondNearby = diamond;
+		spawnDeltaX = deltaX;
+		spawnDeltaY = deltaY;
+		spawnDeltaZ = deltaZ;
 		validUntil = System.currentTimeMillis() + 2500L;
 	}
 
@@ -25,7 +29,9 @@ public final class ScannerHud {
 				+ dronePosition.getZ(), 8, 8, 0xFFFFD95A, true);
 		graphics.text(minecraft.font, "Iron: " + (ironNearby ? "Beep" : "Nothing"), 8, 19,
 				ironNearby ? 0xFFFFB85C : 0xFFB8C4D6, true);
-		graphics.text(minecraft.font, "Diamond: " + (diamondNearby ? "Beep" : "Nothing"), 8, 30,
-				diamondNearby ? 0xFF65E8FF : 0xFFB8C4D6, true);
+		graphics.text(minecraft.font, "Spawn delta: " + signed(spawnDeltaX) + "  " + signed(spawnDeltaY)
+				+ "  " + signed(spawnDeltaZ), 8, 30, 0xFFFFD95A, true);
 	}
+
+	private static String signed(int value) { return value >= 0 ? "+" + value : Integer.toString(value); }
 }
