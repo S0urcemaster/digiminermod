@@ -221,7 +221,7 @@ public final class DigiMinerMod implements ModInitializer {
 			}
 		}
 		if (found != null) { rememberDroneLocation(owner, found.getLevel(), found.getBlockPos()); return; }
-		var pos = owner.blockPosition().relative(owner.getDirection().getOpposite(), 3).above();
+		var pos = owner.blockPosition().relative(owner.getDirection().getOpposite(), 4);
 		if (!owner.level().getBlockState(pos).canBeReplaced()) pos = owner.blockPosition().above(2);
 		owner.level().setBlock(pos, DRONE_BLOCK.defaultBlockState(), 3);
 		if (owner.level().getBlockEntity(pos) instanceof DroneBlockEntity drone) drone.restore(owner.getUUID(), DroneMode.FOLLOW, java.util.List.of());
