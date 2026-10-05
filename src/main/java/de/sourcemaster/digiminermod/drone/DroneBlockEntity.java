@@ -16,11 +16,13 @@ import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 
 import java.util.ArrayList;
+import java.util.ArrayDeque;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
+import java.util.Deque;
 import java.util.UUID;
 import net.fabricmc.fabric.api.menu.v1.ExtendedMenuProvider;
 import net.minecraft.network.chat.Component;
@@ -61,6 +63,10 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 	private long lastMovementTick = Long.MIN_VALUE / 2;
 	private long programStartDelayUntil;
 	private String droneName = "Digi";
+	private BlockPos scannerCachePosition;
+	private boolean cachedIronNearby;
+	private final Deque<BlockPos> followPath = new ArrayDeque<>();
+	private BlockPos followPathDestination;
 
 	public DroneBlockEntity(BlockPos pos, BlockState state) {
 		super(DigiMinerMod.DRONE_BLOCK_ENTITY, pos, state);
@@ -76,20 +82,25 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 			boolean scannerActive = drone.equipmentInventory.getItem(0).is(DigiMinerMod.BASIC_SCANNER_CARTRIDGE);
 			if (scannerActive) {
 				if (!drone.damageCartridge(0, 20)) return;
-				boolean ironNearby = false;
-				// Iron I scans the complete 9 x 9 x 9 cube around Digi.
-				for (BlockPos scan : BlockPos.betweenClosed(pos.offset(-4, -4, -4), pos.offset(4, 4, 4))) {
-					BlockState scanned = level.getBlockState(scan);
-					if (scanned.is(net.minecraft.world.level.block.Blocks.IRON_ORE)
-							|| scanned.is(net.minecraft.world.level.block.Blocks.DEEPSLATE_IRON_ORE)) ironNearby = true;
-					if (ironNearby) break;
+				if (!pos.equals(drone.scannerCachePosition)) {
+					drone.cachedIronNearby = false;
+					// Iron I scans the complete 9 x 9 x 9 cube only after Digi moved.
+					for (BlockPos scan : BlockPos.betweenClosed(pos.offset(-4, -4, -4), pos.offset(4, 4, 4))) {
+						BlockState scanned = level.getBlockState(scan);
+						if (scanned.is(net.minecraft.world.level.block.Blocks.IRON_ORE)
+								|| scanned.is(net.minecraft.world.level.block.Blocks.DEEPSLATE_IRON_ORE)) {
+							drone.cachedIronNearby = true;
+							break;
+						}
+					}
+					drone.scannerCachePosition = pos.immutable();
 				}
 				var respawnConfig = owner.getRespawnConfig();
 				var respawn = respawnConfig == null
 						? level.getServer().getRespawnData() : respawnConfig.respawnData();
 				BlockPos spawn = respawn.pos();
 				net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(owner,
-						new DroneNetworking.ScannerPayload(pos.asLong(), ironNearby,
+						new DroneNetworking.ScannerPayload(pos.asLong(), drone.cachedIronNearby,
 								spawn.getX() - pos.getX(), spawn.getY() - pos.getY(), spawn.getZ() - pos.getZ()));
 			}
 		}
@@ -105,7 +116,7 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		BlockPos destination = owner.blockPosition().above();
 		int tetherLength = chebyshevDistance(pos, destination);
 		if (horizontalDistance(pos, destination) <= 3 && pos.getY() == destination.getY()) return;
-		BlockPos next = drone.findNextPathStep(level, pos, destination, tetherLength);
+		BlockPos next = drone.nextFollowStep(level, pos, destination, tetherLength);
 		if (next != null) drone.moveTo(level, next);
 	}
 
@@ -315,7 +326,35 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		this.programBreakTicksRequired = 0;
 	}
 
-	private BlockPos findNextPathStep(ServerLevel level, BlockPos start, BlockPos destination, int tetherLength) {
+	private BlockPos nextFollowStep(ServerLevel level, BlockPos start, BlockPos destination, int tetherLength) {
+		if (this.followPathDestination != null
+				&& chebyshevDistance(this.followPathDestination, destination) > 4) this.followPath.clear();
+		while (!this.followPath.isEmpty()) {
+			BlockPos next = this.followPath.removeFirst();
+			if (chebyshevDistance(start, next) == 1 && isDryMovementTarget(level, next)) return next;
+			this.followPath.clear();
+		}
+
+		int currentDistance = followDistance(start, destination);
+		BlockPos direct = null;
+		int directDistance = currentDistance;
+		for (Direction direction : Direction.values()) {
+			BlockPos candidate = start.relative(direction);
+			if (!level.hasChunkAt(candidate) || !isDryMovementTarget(level, candidate)) continue;
+			int distance = followDistance(candidate, destination);
+			if (distance < directDistance) {
+				direct = candidate;
+				directDistance = distance;
+			}
+		}
+		if (direct != null) return direct;
+
+		this.followPath.addAll(this.findFollowPath(level, start, destination, tetherLength));
+		this.followPathDestination = destination.immutable();
+		return this.followPath.pollFirst();
+	}
+
+	private Deque<BlockPos> findFollowPath(ServerLevel level, BlockPos start, BlockPos destination, int tetherLength) {
 		// Close to the player, direct movement dominates. A long tether lowers the heuristic
 		// weight and raises the search budget, making sideways/vertical detours increasingly likely.
 		double directionWeight = Math.max(0.65, 2.4 - Math.max(0, tetherLength - 3) * 0.12);
@@ -328,7 +367,11 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		int visited = 0;
 		while (!open.isEmpty() && visited++ < maximumVisited) {
 			PathNode node = open.poll();
-			if (followDistance(node.pos(), destination) == 0 && node.firstStep() != null) return node.firstStep();
+			if (followDistance(node.pos(), destination) == 0 && node.parent() != null) {
+				Deque<BlockPos> result = new ArrayDeque<>();
+				for (PathNode step = node; step.parent() != null; step = step.parent()) result.addFirst(step.pos());
+				return result;
+			}
 			if (node.cost() >= maximumSteps) continue;
 			for (Direction direction : Direction.values()) {
 				BlockPos next = node.pos().relative(direction);
@@ -337,12 +380,11 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 				double cost = node.cost() + 1.0 + backtrackPenalty;
 				if (cost >= bestCosts.getOrDefault(next.asLong(), Double.POSITIVE_INFINITY)) continue;
 				bestCosts.put(next.asLong(), cost);
-				BlockPos first = node.firstStep() == null ? next : node.firstStep();
 				double score = cost + directionWeight * followDistance(next, destination);
-				open.add(new PathNode(next, cost, score, first));
+				open.add(new PathNode(next, cost, score, node));
 			}
 		}
-		return null;
+		return new ArrayDeque<>();
 	}
 
 	private static int chebyshevDistance(BlockPos first, BlockPos second) {
@@ -450,6 +492,10 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 			moved.movementReadyTick = this.movementReadyTick;
 			moved.lastMovementTick = this.lastMovementTick;
 			moved.programStartDelayUntil = this.programStartDelayUntil;
+			moved.scannerCachePosition = this.scannerCachePosition;
+			moved.cachedIronNearby = this.cachedIronNearby;
+			moved.followPath.addAll(this.followPath);
+			moved.followPathDestination = this.followPathDestination;
 			moved.setDroneName(this.droneName);
 			moved.previousPosition = this.worldPosition;
 			moved.setChanged();
@@ -541,7 +587,12 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 	public boolean isOwner(Player player) { return this.ownerId != null && this.ownerId.equals(player.getUUID()); }
 	public UUID getOwnerId() { return this.ownerId; }
 	public DroneMode getMode() { return this.mode; }
-	public void setMode(DroneMode mode) { this.mode = mode; this.setChanged(); }
+	public void setMode(DroneMode mode) {
+		this.mode = mode;
+		this.followPath.clear();
+		this.followPathDestination = null;
+		this.setChanged();
+	}
 	public SimpleContainer getInventory() { return this.inventory; }
 	public SimpleContainer getEquipmentInventory() { return this.equipmentInventory; }
 	public String getDroneName() { return this.droneName; }
@@ -638,5 +689,5 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		return this.saveCustomOnly(provider);
 	}
 
-	private record PathNode(BlockPos pos, double cost, double score, BlockPos firstStep) {}
+	private record PathNode(BlockPos pos, double cost, double score, PathNode parent) {}
 }

@@ -21,6 +21,7 @@ public class RadialStorageScreen<T extends AbstractContainerMenu> extends Screen
 
 	private final T menu;
 	private final int storageSlots;
+	private final int[] storageSlotOrder;
 	private Focus focus = Focus.STORAGE;
 	private int storagePage, storageCursor, inventoryPage, inventoryCursor, hotbarCursor, hotbarPage;
 	private boolean previousA, previousDpad, previousLB, previousRB, previousLT, previousRT;
@@ -30,9 +31,14 @@ public class RadialStorageScreen<T extends AbstractContainerMenu> extends Screen
 	private final ItemTransferAcceleration dpadTransferAcceleration = new ItemTransferAcceleration();
 
 	public RadialStorageScreen(T menu, Inventory inventory, Component title, int storageSlots) {
+		this(menu, inventory, title, storageSlots, null);
+	}
+
+	public RadialStorageScreen(T menu, Inventory inventory, Component title, int storageSlots, int[] storageSlotOrder) {
 		super(title);
 		this.menu = menu;
 		this.storageSlots = storageSlots;
+		this.storageSlotOrder = storageSlotOrder == null ? null : storageSlotOrder.clone();
 	}
 
 	@Override public T getMenu() { return this.menu; }
@@ -126,7 +132,11 @@ public class RadialStorageScreen<T extends AbstractContainerMenu> extends Screen
 	private int storagePageCount() { return (this.storageSlots + PAGE_SIZE - 1) / PAGE_SIZE; }
 	private int storagePageSize() { return Math.min(PAGE_SIZE, this.storageSlots - this.storagePage * PAGE_SIZE); }
 	private int inventoryPageSize() { return this.inventoryPage == 0 ? 14 : 13; }
-	private int storageSlot() { return this.storagePage * PAGE_SIZE + this.storageCursor; }
+	private int storageSlot() { return this.storageMenuSlot(this.storagePage * PAGE_SIZE + this.storageCursor); }
+	private int storageMenuSlot(int displayedSlot) {
+		return this.storageSlotOrder != null && displayedSlot < this.storageSlotOrder.length
+				? this.storageSlotOrder[displayedSlot] : displayedSlot;
+	}
 	private int inventorySlot() { return this.storageSlots + this.inventoryPage * PAGE_SIZE + this.inventoryCursor; }
 	private int hotbarSlot() { return this.storageSlots + 27 + this.hotbarCursor; }
 
@@ -146,7 +156,8 @@ public class RadialStorageScreen<T extends AbstractContainerMenu> extends Screen
 			double a = Math.PI * 2 * i / count - Math.PI / 2;
 			int x = cx + (int)Math.round(Math.cos(a) * radius) - 10;
 			int y = cy + (int)Math.round(Math.sin(a) * radius) - 10;
-			int slot = storage ? this.storagePage * PAGE_SIZE + i : this.storageSlots + this.inventoryPage * PAGE_SIZE + i;
+			int slot = storage ? this.storageMenuSlot(this.storagePage * PAGE_SIZE + i)
+					: this.storageSlots + this.inventoryPage * PAGE_SIZE + i;
 			this.slot(graphics, this.menu.getSlot(slot).getItem(), x, y,
 					(storage ? this.storageCursor : this.inventoryCursor) == i,
 					this.focus == (storage ? Focus.STORAGE : Focus.INVENTORY));

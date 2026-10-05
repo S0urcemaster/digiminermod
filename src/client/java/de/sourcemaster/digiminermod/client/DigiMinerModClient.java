@@ -25,6 +25,7 @@ import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.ChestMenu;
+import net.minecraft.world.inventory.AbstractFurnaceMenu;
 import net.minecraft.world.inventory.DispenserMenu;
 import net.minecraft.world.inventory.HopperMenu;
 import net.minecraft.world.inventory.ShulkerBoxMenu;
@@ -58,6 +59,9 @@ public final class DigiMinerModClient implements ClientModInitializer {
 			if (menu instanceof ChestMenu chest) {
 				client.gui.setScreen(new RadialStorageScreen<>(chest, client.player.getInventory(), screen.getTitle(),
 						chest.getRowCount() * 9));
+			} else if (menu instanceof AbstractFurnaceMenu furnace) {
+				client.gui.setScreen(new RadialStorageScreen<>(furnace, client.player.getInventory(), screen.getTitle(),
+						3, new int[] {0, 2, 1}));
 			} else if (menu instanceof DispenserMenu dispenser) {
 				client.gui.setScreen(new RadialStorageScreen<>(dispenser, client.player.getInventory(), screen.getTitle(), 9));
 			} else if (menu instanceof HopperMenu hopper) {
