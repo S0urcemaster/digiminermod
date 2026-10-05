@@ -33,6 +33,8 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 	private static final int PROGRAM_START_DELAY_TICKS = 60;
 	private static final int PROGRAM_MOVE_TICKS = 20;
 	private static final int PROGRAM_TURN_TICKS = 10;
+	private static final int FOLLOW_MOVE_TICKS = 3;
+	private static final int FAILED_FOLLOW_PATH_RETRY_TICKS = 20;
 	private UUID ownerId;
 	private DroneMode mode = DroneMode.FOLLOW;
 	private Direction facing = Direction.NORTH;
@@ -67,6 +69,13 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 	private boolean cachedIronNearby;
 	private final Deque<BlockPos> followPath = new ArrayDeque<>();
 	private BlockPos followPathDestination;
+	private long nextFollowPathTick;
+	private long diagnosticsWindowStart;
+	private int diagnosticFollowMoves;
+	private int diagnosticOtherMoves;
+	private int diagnosticPathSearches;
+	private int diagnosticTurns;
+	private int diagnosticIronScans;
 
 	public DroneBlockEntity(BlockPos pos, BlockState state) {
 		super(DigiMinerMod.DRONE_BLOCK_ENTITY, pos, state);
@@ -78,11 +87,13 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 	public static void serverTick(net.minecraft.world.level.Level ignored, BlockPos pos, BlockState state, DroneBlockEntity drone) {
 		if (!(drone.level instanceof ServerLevel level) || drone.ownerId == null) return;
 		ServerPlayer owner = level.getServer().getPlayerList().getPlayer(drone.ownerId);
+		drone.reportDiagnostics(level);
 		if (owner != null && owner.level() == level && level.getGameTime() % 20 == 0) {
 			boolean scannerActive = drone.equipmentInventory.getItem(0).is(DigiMinerMod.BASIC_SCANNER_CARTRIDGE);
 			if (scannerActive) {
 				if (!drone.damageCartridge(0, 20)) return;
 				if (!pos.equals(drone.scannerCachePosition)) {
+					drone.diagnosticIronScans++;
 					drone.cachedIronNearby = false;
 					// Iron I scans the complete 9 x 9 x 9 cube only after Digi moved.
 					for (BlockPos scan : BlockPos.betweenClosed(pos.offset(-4, -4, -4), pos.offset(4, 4, 4))) {
@@ -116,6 +127,7 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		BlockPos destination = owner.blockPosition().above();
 		int tetherLength = chebyshevDistance(pos, destination);
 		if (horizontalDistance(pos, destination) <= 3 && pos.getY() == destination.getY()) return;
+		if (level.getGameTime() - drone.lastMovementTick < FOLLOW_MOVE_TICKS) return;
 		BlockPos next = drone.nextFollowStep(level, pos, destination, tetherLength);
 		if (next != null) drone.moveTo(level, next);
 	}
@@ -349,12 +361,19 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		}
 		if (direct != null) return direct;
 
+		if (level.getGameTime() < this.nextFollowPathTick) return null;
 		this.followPath.addAll(this.findFollowPath(level, start, destination, tetherLength));
 		this.followPathDestination = destination.immutable();
+		if (this.followPath.isEmpty()) {
+			this.nextFollowPathTick = level.getGameTime() + FAILED_FOLLOW_PATH_RETRY_TICKS;
+			return null;
+		}
+		this.nextFollowPathTick = 0L;
 		return this.followPath.pollFirst();
 	}
 
 	private Deque<BlockPos> findFollowPath(ServerLevel level, BlockPos start, BlockPos destination, int tetherLength) {
+		this.diagnosticPathSearches++;
 		// Close to the player, direct movement dominates. A long tether lowers the heuristic
 		// weight and raises the search budget, making sideways/vertical detours increasingly likely.
 		double directionWeight = Math.max(0.65, 2.4 - Math.max(0, tetherLength - 3) * 0.12);
@@ -432,6 +451,7 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		Direction wanted = dx > 0 ? Direction.EAST : dx < 0 ? Direction.WEST
 				: dz > 0 ? Direction.SOUTH : dz < 0 ? Direction.NORTH : null;
 		if (wanted != null && this.facing != wanted) {
+			this.diagnosticTurns++;
 			this.facing = this.facing.getClockWise() == wanted || this.facing.getOpposite() == wanted
 					? this.facing.getClockWise() : this.facing.getCounterClockWise();
 			BlockState state = level.getBlockState(this.worldPosition);
@@ -456,6 +476,8 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 	}
 
 	private void relocateTo(ServerLevel level, BlockPos target) {
+		if (this.mode == DroneMode.FOLLOW && this.activeProgram < 0) this.diagnosticFollowMoves++;
+		else this.diagnosticOtherMoves++;
 		UUID owner = this.ownerId;
 		DroneMode oldMode = this.mode;
 		List<ItemStack> stacks = this.copyInventory();
@@ -496,6 +518,13 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 			moved.cachedIronNearby = this.cachedIronNearby;
 			moved.followPath.addAll(this.followPath);
 			moved.followPathDestination = this.followPathDestination;
+			moved.nextFollowPathTick = this.nextFollowPathTick;
+			moved.diagnosticsWindowStart = this.diagnosticsWindowStart;
+			moved.diagnosticFollowMoves = this.diagnosticFollowMoves;
+			moved.diagnosticOtherMoves = this.diagnosticOtherMoves;
+			moved.diagnosticPathSearches = this.diagnosticPathSearches;
+			moved.diagnosticTurns = this.diagnosticTurns;
+			moved.diagnosticIronScans = this.diagnosticIronScans;
 			moved.setDroneName(this.droneName);
 			moved.previousPosition = this.worldPosition;
 			moved.setChanged();
@@ -514,6 +543,31 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 
 	private static boolean isDryMovementTarget(net.minecraft.world.level.Level level, BlockPos pos) {
 		return level.getBlockState(pos).canBeReplaced() && level.getFluidState(pos).isEmpty();
+	}
+
+	private void reportDiagnostics(ServerLevel level) {
+		long now = level.getGameTime();
+		if (this.diagnosticsWindowStart == 0L) {
+			this.diagnosticsWindowStart = now;
+			return;
+		}
+		long ticks = now - this.diagnosticsWindowStart;
+		if (ticks < 100L) return;
+		double seconds = ticks / 20.0;
+		DigiMinerMod.LOGGER.info(
+				"Digi diagnostics: followMoves/s={}, otherMoves/s={}, paths/s={}, turns/s={}, ironScans/s={}, mode={}, pos={}",
+				String.format(java.util.Locale.ROOT, "%.2f", this.diagnosticFollowMoves / seconds),
+				String.format(java.util.Locale.ROOT, "%.2f", this.diagnosticOtherMoves / seconds),
+				String.format(java.util.Locale.ROOT, "%.2f", this.diagnosticPathSearches / seconds),
+				String.format(java.util.Locale.ROOT, "%.2f", this.diagnosticTurns / seconds),
+				String.format(java.util.Locale.ROOT, "%.2f", this.diagnosticIronScans / seconds),
+				this.mode, this.worldPosition);
+		this.diagnosticsWindowStart = now;
+		this.diagnosticFollowMoves = 0;
+		this.diagnosticOtherMoves = 0;
+		this.diagnosticPathSearches = 0;
+		this.diagnosticTurns = 0;
+		this.diagnosticIronScans = 0;
 	}
 
 	public void teleportNear(ServerPlayer owner) {
@@ -591,6 +645,7 @@ public final class DroneBlockEntity extends BlockEntity implements ExtendedMenuP
 		this.mode = mode;
 		this.followPath.clear();
 		this.followPathDestination = null;
+		this.nextFollowPathTick = 0L;
 		this.setChanged();
 	}
 	public SimpleContainer getInventory() { return this.inventory; }
