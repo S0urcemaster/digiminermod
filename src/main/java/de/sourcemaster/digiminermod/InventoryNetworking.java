@@ -50,8 +50,16 @@ public final class InventoryNetworking {
 			var target = menu.getSlot(payload.targetSlot());
 			ItemStack sourceStack = source.getItem();
 			ItemStack targetStack = target.getItem();
-			if (sourceStack.isEmpty() || !target.mayPlace(sourceStack)) return;
-			if (!targetStack.isEmpty() && !ItemStack.isSameItemSameComponents(sourceStack, targetStack)) return;
+			if (sourceStack.isEmpty() || !source.mayPickup(player) || !target.mayPlace(sourceStack)) return;
+			if (!targetStack.isEmpty() && !ItemStack.isSameItemSameComponents(sourceStack, targetStack)) {
+				if (!target.mayPickup(player) || !source.mayPlace(targetStack)
+						|| sourceStack.getCount() > target.getMaxStackSize(sourceStack)
+						|| targetStack.getCount() > source.getMaxStackSize(targetStack)) return;
+				source.set(targetStack.copy());
+				target.set(sourceStack.copy());
+				menu.broadcastChanges();
+				return;
+			}
 			int limit = Math.min(sourceStack.getMaxStackSize(), target.getMaxStackSize(sourceStack));
 			if (targetStack.getCount() >= limit) return;
 			ItemStack taken = source.safeTake(1, 1, player);
